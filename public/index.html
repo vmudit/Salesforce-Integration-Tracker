@@ -343,14 +343,24 @@
     <section class="panel" id="filters-panel" hidden>
       <div class="panel-h">
         <div class="panel-title">Filters</div>
-        <div class="panel-subtitle">Slice by date, type, status, limits, AE, and conversion</div>
+        <div class="panel-subtitle">Slice by date level (day / week / month / year), type, status, limits, AE, and conversion</div>
       </div>
       <div class="panel-b">
         <div class="filters">
-          <label>Trial start from
+          <label>Date level
+            <select id="f-date-level">
+              <option value="day">Day</option>
+              <option value="week">Week</option>
+              <option value="month">Month</option>
+              <option value="year">Year</option>
+            </select>
+          </label>
+          <label>
+            <span id="lbl-start-from-text">Trial start from</span>
             <input type="date" id="f-start-from" />
           </label>
-          <label>Trial start to
+          <label>
+            <span id="lbl-start-to-text">Trial start to</span>
             <input type="date" id="f-start-to" />
           </label>
           <label>Trial type
@@ -526,9 +536,102 @@
       `).join("");
     }
 
+    function pad2(n) {
+      return String(n).padStart(2, "0");
+    }
+
+    function isoDate(d) {
+      return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
+    }
+
+    /** Expand a period value (day/week/month/year) to [start, end] ISO dates inclusive. */
+    function periodToRange(level, value, bound) {
+      if (!value) return null;
+      if (level === "day") return value;
+
+      if (level === "week") {
+        // HTML week value: YYYY-Www
+        const m = /^(\d{4})-W(\d{2})$/.exec(value);
+        if (!m) return null;
+        const year = Number(m[1]);
+        const week = Number(m[2]);
+        // ISO week: Monday of week 1 contains Jan 4
+        const jan4 = new Date(Date.UTC(year, 0, 4));
+        const day = jan4.getUTCDay() || 7;
+        const monday = new Date(jan4);
+        monday.setUTCDate(jan4.getUTCDate() - day + 1 + (week - 1) * 7);
+        const sunday = new Date(monday);
+        sunday.setUTCDate(monday.getUTCDate() + 6);
+        return bound === "from" ? isoDate(monday) : isoDate(sunday);
+      }
+
+      if (level === "month") {
+        // YYYY-MM
+        const m = /^(\d{4})-(\d{2})$/.exec(value);
+        if (!m) return null;
+        const year = Number(m[1]);
+        const month = Number(m[2]);
+        if (bound === "from") return `${year}-${pad2(month)}-01`;
+        const last = new Date(Date.UTC(year, month, 0));
+        return isoDate(last);
+      }
+
+      if (level === "year") {
+        const year = Number(value);
+        if (!Number.isFinite(year)) return null;
+        return bound === "from" ? `${year}-01-01` : `${year}-12-31`;
+      }
+      return null;
+    }
+
+    function syncDateLevelInputs() {
+      const level = document.getElementById("f-date-level").value;
+      const fromEl = document.getElementById("f-start-from");
+      const toEl = document.getElementById("f-start-to");
+
+      const configs = {
+        day: { type: "date", fromLabel: "Trial start from", toLabel: "Trial start to" },
+        week: { type: "week", fromLabel: "Week from", toLabel: "Week to" },
+        month: { type: "month", fromLabel: "Month from", toLabel: "Month to" },
+        year: { type: "number", fromLabel: "Year from", toLabel: "Year to" },
+      };
+      const cfg = configs[level] || configs.day;
+
+      fromEl.type = cfg.type;
+      toEl.type = cfg.type;
+      fromEl.value = "";
+      toEl.value = "";
+
+      if (level === "year") {
+        fromEl.min = "2000";
+        fromEl.max = "2100";
+        fromEl.placeholder = "YYYY";
+        fromEl.step = "1";
+        toEl.min = "2000";
+        toEl.max = "2100";
+        toEl.placeholder = "YYYY";
+        toEl.step = "1";
+      } else {
+        fromEl.removeAttribute("min");
+        fromEl.removeAttribute("max");
+        fromEl.removeAttribute("placeholder");
+        fromEl.removeAttribute("step");
+        toEl.removeAttribute("min");
+        toEl.removeAttribute("max");
+        toEl.removeAttribute("placeholder");
+        toEl.removeAttribute("step");
+      }
+
+      document.getElementById("lbl-start-from-text").textContent = cfg.fromLabel;
+      document.getElementById("lbl-start-to-text").textContent = cfg.toLabel;
+    }
+
     function filteredRecords() {
-      const from = document.getElementById("f-start-from").value;
-      const to = document.getElementById("f-start-to").value;
+      const level = document.getElementById("f-date-level").value || "day";
+      const fromRaw = document.getElementById("f-start-from").value;
+      const toRaw = document.getElementById("f-start-to").value;
+      const from = periodToRange(level, fromRaw, "from");
+      const to = periodToRange(level, toRaw, "to");
       const type = document.getElementById("f-type").value;
       const status = document.getElementById("f-status").value;
       const extended = document.getElementById("f-extended").value;
@@ -634,7 +737,13 @@
         document.getElementById(id).addEventListener("input", renderTable);
         document.getElementById(id).addEventListener("change", renderTable);
       });
+      document.getElementById("f-date-level").addEventListener("change", () => {
+        syncDateLevelInputs();
+        renderTable();
+      });
       document.getElementById("btn-reset").addEventListener("click", () => {
+        document.getElementById("f-date-level").value = "day";
+        syncDateLevelInputs();
         document.getElementById("f-start-from").value = "";
         document.getElementById("f-start-to").value = "";
         document.getElementById("f-type").value = "";
