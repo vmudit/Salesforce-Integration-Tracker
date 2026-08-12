@@ -11,6 +11,9 @@ const { startScheduler, DEFAULT_TIME, DEFAULT_TZ } = require("./src/scheduler");
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
+// Railway (and most PaaS) healthchecks hit the container on a private
+ // interface — bind all interfaces, not just localhost.
+const HOST = process.env.HOST || "0.0.0.0";
 
 // Fallback only. With a daily schedule running, the cache is held until that
 // schedule replaces it, so this TTL applies only when REFRESH_AT is off or
@@ -239,16 +242,16 @@ app.get("*", (_req, res) => {
   res.sendFile(path.join(__dirname, "public", "index.html"));
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, HOST, () => {
   const demo = demoModeEnabled();
   if (demo) {
-    console.log(`Listening on port ${PORT} (DEMO_MODE — synthetic data, no BigQuery)`);
+    console.log(`Listening on http://${HOST}:${PORT} (DEMO_MODE — synthetic data, no BigQuery)`);
   } else if (!isBigQueryConfigured()) {
     console.error(
       "BigQuery is NOT configured. Set GOOGLE_APPLICATION_CREDENTIALS_JSON and BQ_PROJECT_ID, or DEMO_MODE=1."
     );
   } else {
-    console.log(`Listening on port ${PORT} (BigQuery project: ${getProjectId()})`);
+    console.log(`Listening on http://${HOST}:${PORT} (BigQuery project: ${getProjectId()})`);
   }
   if (!AUTH_ENABLED) {
     console.warn(
