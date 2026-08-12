@@ -170,13 +170,30 @@ function mapRow(row, index, todayStr) {
     usageLimit = STANDARD_DEFAULT_USAGE_LIMIT;
   }
 
+  const planSelected =
+    coerceString(row.property_c_plan_type).trim() ||
+    coerceString(row.subscription_plan).trim() ||
+    type;
+  const email = coerceString(row.email);
+  const companyName =
+    coerceString(row.company_name).trim() ||
+    coerceString(row.companyName).trim() ||
+    (email.includes("@") ? email.split("@")[1] : "") ||
+    "";
+  const extendedDaysBeyond14 =
+    currentDuration != null && Number.isFinite(currentDuration)
+      ? Math.max(0, currentDuration - 14)
+      : null;
+
   return {
     id: `${coerceString(row.companyid) || "x"}-${trialStart || index}-${coerceString(row.opportunity_id) || index}`,
-    accountName: coerceString(row.email) || coerceString(row.companyid) || "—",
+    accountName: email || coerceString(row.companyid) || "—",
+    companyName: companyName || "—",
     accountUid: coerceString(row.companyid),
-    email: coerceString(row.email),
+    email,
     opportunityId: coerceString(row.opportunity_id),
     trialType: type,
+    planSelected,
     trialSegment: trialSegment(row),
     aeName: ae,
     trialStartDate: trialStart,
@@ -187,6 +204,7 @@ function mapRow(row, index, todayStr) {
     extendedTrialEndDate: extendedEnd,
     additionalDaysProvided: trialExtended ? additionalDays : null,
     currentTotalTrialDurationDays: currentDuration,
+    extendedDaysBeyond14,
     currentTrialEndDate: effectiveEnd,
     currentTrialStatus: status,
     usageLimitApplied: usageLimit,
@@ -282,6 +300,8 @@ function buildPayload(rows, opts = {}) {
     records,
     fieldNotes: {
       accountName: "Mapped from email until company name is added to the extract",
+      companyName: "Email domain fallback until company name is in the extract",
+      extendedDaysBeyond14: "current total trial days minus 14 (standard trial length)",
       trialInstance: "One row per TrialTime + opportunity_id — repeat trials are separate records",
       aeName:
         "From extract: ae_owner_name → SFDC owner name (SDR/BDR/PS/AE) → property_sales_team_owner",

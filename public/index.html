@@ -327,6 +327,62 @@
       color: var(--muted-2);
     }
     .notes ul { margin: 0.5rem 0 0; padding-left: 1.1rem; }
+
+    .tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      margin: 0 0 1rem;
+      padding-bottom: 0.35rem;
+      border-bottom: 1px solid var(--line);
+    }
+    .tab-btn {
+      background: var(--surface);
+      border: 1px solid var(--line-2);
+      color: var(--muted-2);
+      border-radius: 10px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      height: 2.35rem;
+      padding: 0 1.1rem;
+    }
+    .tab-btn:hover {
+      color: var(--fg);
+      border-color: var(--accent);
+      background: #1e293b;
+    }
+    .tab-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .subtabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem;
+      margin-bottom: 0.85rem;
+    }
+    .subtab-btn {
+      background: #0f172a;
+      border: 1px solid var(--line-2);
+      color: var(--muted-2);
+      border-radius: 10px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      height: 2.1rem;
+      padding: 0 0.9rem;
+    }
+    .subtab-btn:hover {
+      color: var(--fg);
+      border-color: var(--accent);
+    }
+    .subtab-btn.active {
+      background: rgba(99, 102, 241, 0.22);
+      border-color: var(--accent);
+      color: #c7d2fe;
+    }
+    .tab-panel { display: none; }
+    .tab-panel.active { display: block; }
   </style>
 </head>
 <body>
@@ -408,16 +464,40 @@
         <div class="panel-subtitle">Each trial instance is a separate record — repeat trials are never overwritten</div>
       </div>
       <div class="panel-b">
+        <div class="tabs" role="tablist">
+          <button type="button" class="tab-btn active" data-main-tab="summary">Summary</button>
+          <button type="button" class="tab-btn" data-main-tab="detailed">Detailed breakdown</button>
+        </div>
+
         <div class="toolbar">
           <span id="row-count"></span>
           <input class="search" type="search" id="f-search" placeholder="Search account, UID, AE…" />
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead id="thead"></thead>
-            <tbody id="tbody"></tbody>
-          </table>
+
+        <div class="tab-panel active" id="panel-summary">
+          <div class="table-wrap">
+            <table>
+              <thead id="thead-summary"></thead>
+              <tbody id="tbody-summary"></tbody>
+            </table>
+          </div>
         </div>
+
+        <div class="tab-panel" id="panel-detailed">
+          <div class="subtabs" role="tablist">
+            <button type="button" class="subtab-btn active" data-detail-tab="account">Account details</button>
+            <button type="button" class="subtab-btn" data-detail-tab="duration">Trial duration</button>
+            <button type="button" class="subtab-btn" data-detail-tab="limits">Trial limits</button>
+            <button type="button" class="subtab-btn" data-detail-tab="conversion">Conversion details</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead id="thead-detailed"></thead>
+              <tbody id="tbody-detailed"></tbody>
+            </table>
+          </div>
+        </div>
+
         <details class="notes">
           <summary>Field mapping notes</summary>
           <div id="field-notes"></div>
@@ -427,37 +507,66 @@
   </div>
 
   <script>
-    const COLUMNS = [
-      { key: "accountName", label: "Account" },
-      { key: "accountUid", label: "UID" },
-      { key: "opportunityId", label: "Opportunity" },
-      { key: "trialType", label: "Type", render: "type" },
-      { key: "trialSegment", label: "Segment" },
-      { key: "aeName", label: "AE" },
-      { key: "trialStartDate", label: "Trial start" },
-      { key: "originalTrialEndDate", label: "Orig. end" },
-      { key: "originalTrialDurationDays", label: "Orig. days", render: "num" },
-      { key: "trialExtended", label: "Extended", render: "yn" },
-      { key: "extensionDate", label: "Extension date" },
-      { key: "extendedTrialEndDate", label: "Ext. end" },
-      { key: "additionalDaysProvided", label: "Extra days", render: "num" },
-      { key: "currentTrialEndDate", label: "Current end" },
-      { key: "currentTotalTrialDurationDays", label: "Total days", render: "num" },
+    const SUMMARY_COLUMNS = [
+      { key: "accountUid", label: "Company ID" },
+      { key: "companyName", label: "Company name" },
+      { key: "email", label: "Email" },
+      { key: "planSelected", label: "Plan selected", render: "type" },
+      { key: "trialStartDate", label: "Trial start date" },
+      { key: "currentTrialEndDate", label: "Trial end date" },
+      { key: "currentTotalTrialDurationDays", label: "Total trial days", render: "num" },
+      { key: "extendedDaysBeyond14", label: "Extended days", render: "num" },
       { key: "currentTrialStatus", label: "Status", render: "status" },
-      { key: "usageLimitApplied", label: "Usage limit", render: "limit" },
-      { key: "limitType", label: "Limit type" },
-      { key: "limitOverridden", label: "Limit override", render: "yn" },
-      { key: "limitOverrideDate", label: "Override date" },
-      { key: "convertedToPaid", label: "Converted", render: "yn" },
-      { key: "closedWonDate", label: "Closed-won" },
+      { key: "closedWonDate", label: "Customer time" },
+      { key: "daysTrialToClosedWon", label: "Trial to customer days", render: "num" },
       { key: "mrrGenerated", label: "MRR", render: "money" },
-      { key: "daysTrialToClosedWon", label: "Days to CW", render: "num" },
-      { key: "aeConversionOwner", label: "AE (conversion)" },
+      { key: "aeName", label: "AE name" },
     ];
+
+    const DETAIL_COLUMNS = {
+      account: [
+        { key: "accountName", label: "Account name" },
+        { key: "accountUid", label: "Account UID" },
+        { key: "trialType", label: "Trial type", render: "type" },
+        { key: "trialSegment", label: "Trial segment" },
+        { key: "aeName", label: "AE name" },
+      ],
+      duration: [
+        { key: "trialStartDate", label: "Trial start date" },
+        { key: "originalTrialEndDate", label: "Original trial end date" },
+        { key: "originalTrialDurationDays", label: "Original trial duration (days)", render: "num" },
+        { key: "trialExtended", label: "Trial extended", render: "yn" },
+        { key: "extensionDate", label: "Extension date" },
+        { key: "extendedTrialEndDate", label: "Extended trial end date" },
+        { key: "additionalDaysProvided", label: "Additional days provided", render: "num" },
+        { key: "currentTotalTrialDurationDays", label: "Current total trial duration", render: "num" },
+        { key: "currentTrialStatus", label: "Current trial status", render: "status" },
+      ],
+      limits: [
+        { key: "usageLimitApplied", label: "Usage limit applied", render: "limit" },
+        { key: "limitType", label: "Limit type" },
+        { key: "limitOverridden", label: "Limit overridden", render: "yn" },
+        { key: "limitOverrideDate", label: "Date of limit override" },
+      ],
+      conversion: [
+        { key: "convertedToPaid", label: "Converted to paid", render: "yn" },
+        { key: "closedWonDate", label: "Closed-won date" },
+        { key: "mrrGenerated", label: "MRR generated", render: "money" },
+        { key: "daysTrialToClosedWon", label: "Days from trial start to closed-won", render: "num" },
+        { key: "aeConversionOwner", label: "AE name (conversion)" },
+      ],
+    };
 
     let DATA = null;
     let sortKey = "trialStartDate";
     let sortDir = "desc";
+    let mainTab = "summary";
+    let detailTab = "account";
+
+    function activeColumns() {
+      if (mainTab === "summary") return SUMMARY_COLUMNS;
+      return DETAIL_COLUMNS[detailTab] || DETAIL_COLUMNS.account;
+    }
 
     function money(n) {
       if (n == null || n === "") return "—";
@@ -477,7 +586,13 @@
     }
 
     function cell(col, row) {
-      const v = row[col.key];
+      let v = row[col.key];
+      if (col.key === "planSelected") {
+        const cls = String(row.trialType || v || "").toLowerCase().includes("enterprise")
+          ? "enterprise"
+          : "standard";
+        return `<td>${pill(v || "—", cls)}</td>`;
+      }
       if (col.render === "status") {
         const cls = String(v || "").toLowerCase();
         return `<td>${pill(v || "—", cls)}</td>`;
@@ -544,18 +659,15 @@
       return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
     }
 
-    /** Expand a period value (day/week/month/year) to [start, end] ISO dates inclusive. */
     function periodToRange(level, value, bound) {
       if (!value) return null;
       if (level === "day") return value;
 
       if (level === "week") {
-        // HTML week value: YYYY-Www
         const m = /^(\d{4})-W(\d{2})$/.exec(value);
         if (!m) return null;
         const year = Number(m[1]);
         const week = Number(m[2]);
-        // ISO week: Monday of week 1 contains Jan 4
         const jan4 = new Date(Date.UTC(year, 0, 4));
         const day = jan4.getUTCDay() || 7;
         const monday = new Date(jan4);
@@ -566,7 +678,6 @@
       }
 
       if (level === "month") {
-        // YYYY-MM
         const m = /^(\d{4})-(\d{2})$/.exec(value);
         if (!m) return null;
         const year = Number(m[1]);
@@ -651,7 +762,7 @@
         if (converted && r.convertedToPaid !== converted) return false;
         if (ae && r.aeName !== ae) return false;
         if (q) {
-          const hay = [r.accountName, r.accountUid, r.aeName, r.email, r.opportunityId]
+          const hay = [r.accountName, r.companyName, r.accountUid, r.aeName, r.email, r.opportunityId]
             .join(" ")
             .toLowerCase();
           if (!hay.includes(q)) return false;
@@ -698,14 +809,10 @@
       };
     }
 
-    function renderTable() {
-      const rows = filteredRecords();
-      renderKpis(summarize(rows));
-      document.getElementById("row-count").textContent =
-        `${rows.length} of ${DATA.records.length} trials`;
-
-      const thead = document.getElementById("thead");
-      thead.innerHTML = "<tr>" + COLUMNS.map((c) => {
+    function paintTable(theadId, tbodyId, columns, rows) {
+      const thead = document.getElementById(theadId);
+      const tbody = document.getElementById(tbodyId);
+      thead.innerHTML = "<tr>" + columns.map((c) => {
         const mark = c.key === sortKey ? (sortDir === "asc" ? "▲" : "▼") : "";
         return `<th data-key="${c.key}">${escapeHtml(c.label)}<span class="sort">${mark}</span></th>`;
       }).join("") + "</tr>";
@@ -719,14 +826,38 @@
         });
       });
 
-      const tbody = document.getElementById("tbody");
       if (!rows.length) {
-        tbody.innerHTML = `<tr><td colspan="${COLUMNS.length}" class="muted">No trials match these filters.</td></tr>`;
+        tbody.innerHTML = `<tr><td colspan="${columns.length}" class="muted">No trials match these filters.</td></tr>`;
         return;
       }
       tbody.innerHTML = rows.map((r) =>
-        "<tr>" + COLUMNS.map((c) => cell(c, r)).join("") + "</tr>"
+        "<tr>" + columns.map((c) => cell(c, r)).join("") + "</tr>"
       ).join("");
+    }
+
+    function syncTabVisibility() {
+      document.querySelectorAll("[data-main-tab]").forEach((btn) => {
+        btn.classList.toggle("active", btn.getAttribute("data-main-tab") === mainTab);
+      });
+      document.getElementById("panel-summary").classList.toggle("active", mainTab === "summary");
+      document.getElementById("panel-detailed").classList.toggle("active", mainTab === "detailed");
+      document.querySelectorAll("[data-detail-tab]").forEach((btn) => {
+        btn.classList.toggle("active", btn.getAttribute("data-detail-tab") === detailTab);
+      });
+    }
+
+    function renderTable() {
+      const rows = filteredRecords();
+      renderKpis(summarize(rows));
+      document.getElementById("row-count").textContent =
+        `${rows.length} of ${DATA.records.length} trials`;
+      syncTabVisibility();
+
+      if (mainTab === "summary") {
+        paintTable("thead-summary", "tbody-summary", SUMMARY_COLUMNS, rows);
+      } else {
+        paintTable("thead-detailed", "tbody-detailed", activeColumns(), rows);
+      }
     }
 
     const DEFAULT_START_FROM = "2026-01-01";
@@ -766,6 +897,25 @@
         renderTable();
       });
       document.getElementById("btn-refresh").addEventListener("click", () => boot(true));
+
+      document.querySelectorAll("[data-main-tab]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          mainTab = btn.getAttribute("data-main-tab");
+          if (mainTab === "summary") sortKey = "trialStartDate";
+          renderTable();
+        });
+      });
+      document.querySelectorAll("[data-detail-tab]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          detailTab = btn.getAttribute("data-detail-tab");
+          const cols = DETAIL_COLUMNS[detailTab] || [];
+          if (cols.length && !cols.some((c) => c.key === sortKey)) {
+            sortKey = cols[0].key;
+            sortDir = "desc";
+          }
+          renderTable();
+        });
+      });
     }
 
     function renderShell() {
