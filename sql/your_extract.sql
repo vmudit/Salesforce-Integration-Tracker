@@ -66,7 +66,7 @@ base AS (
   FROM `PROJECT.hubspot_migration.reporting_user_funnel_new_hs` a
   LEFT JOIN (
     SELECT *
-    FROM `PROJECT.hubspot_migration.sfdc_user_role_hs`
+    FROM `PROJECT.analytics_seed.hubspot_sfdc_user_role_hs`
     WHERE profile_name_c IN ('SDR', 'BDR', 'PS', 'AE')
   ) smp1
     ON CAST(smp1.id AS STRING) = CAST(a.owner_id AS STRING)

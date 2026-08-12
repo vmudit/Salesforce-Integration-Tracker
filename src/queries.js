@@ -90,8 +90,8 @@ function sfdcUserRoleTable() {
   return datasetTable(
     "BQ_SFDC_DATASET",
     "BQ_SFDC_TABLE",
-    "hubspot_migration",
-    "sfdc_user_role_hs",
+    "analytics_seed",
+    "hubspot_sfdc_user_role_hs",
     "sfdc_user_role"
   );
 }
