@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Trial Extension Dashboard</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --surface: #ffffff;
+      --fg: #1a2332;
+      --muted: #5c6b7a;
+      --line: #d8e0e8;
+      --accent: #0b6e4f;
+      --accent-soft: #e6f3ee;
+      --warn: #9a6700;
+      --warn-bg: #fff8e6;
+      --danger: #b42318;
+      --danger-bg: #fef3f2;
+      --ok: #027a48;
+      --ok-bg: #ecfdf3;
+      --info: #175cd3;
+      --info-bg: #eff8ff;
+      --shadow: 0 1px 2px rgba(16, 24, 40, 0.06);
+      --radius: 10px;
+      --font: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+      --mono: "IBM Plex Mono", ui-monospace, monospace;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background:
+        radial-gradient(1200px 500px at 10% -10%, #dceee6 0%, transparent 55%),
+        radial-gradient(900px 400px at 100% 0%, #e8eef5 0%, transparent 50%),
+        var(--bg);
+      color: var(--fg);
+      min-height: 100vh;
+    }
+
+    .wrap {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 1.5rem 1.25rem 3rem;
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    header h1 {
+      margin: 0;
+      font-size: 1.65rem;
+      font-weight: 650;
+      letter-spacing: -0.02em;
+    }
+    header .sub {
+      margin: 0.35rem 0 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }
+    .meta {
+      text-align: right;
+      color: var(--muted);
+      font-size: 0.85rem;
+      line-height: 1.45;
+    }
+    .badge {
+      display: inline-block;
+      padding: 0.15rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: var(--warn-bg);
+      color: var(--warn);
+      margin-left: 0.35rem;
+    }
+
+    #status {
+      margin-bottom: 1rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+    #status.error { color: var(--danger); }
+
+    .kpis {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
+    }
+    @media (min-width: 1100px) {
+      .kpis { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    }
+    @media (max-width: 700px) {
+      .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 520px) {
+      .kpis { grid-template-columns: 1fr; }
+      .meta { text-align: left; }
+    }
+
+    .kpi {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 0.9rem 1rem;
+      box-shadow: var(--shadow);
+    }
+    .kpi .label {
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 600;
+    }
+    .kpi .value {
+      margin-top: 0.35rem;
+      font-size: 1.55rem;
+      font-weight: 650;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+    }
+    .kpi .hint {
+      margin-top: 0.2rem;
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      margin-bottom: 1.25rem;
+    }
+    .panel-h {
+      padding: 0.85rem 1rem;
+      border-bottom: 1px solid var(--line);
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+    .panel-b { padding: 1rem; }
+
+    .filters {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0.75rem 1rem;
+    }
+    @media (max-width: 800px) {
+      .filters { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 520px) {
+      .filters { grid-template-columns: 1fr; }
+    }
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    input, select {
+      font: inherit;
+      font-size: 0.9rem;
+      font-weight: 500;
+      text-transform: none;
+      letter-spacing: normal;
+      color: var(--fg);
+      background: #fafbfc;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 0.45rem 0.6rem;
+    }
+    input:focus, select:focus {
+      outline: 2px solid color-mix(in srgb, var(--accent) 35%, transparent);
+      border-color: var(--accent);
+    }
+    .filter-actions {
+      display: flex;
+      align-items: flex-end;
+      gap: 0.5rem;
+    }
+    button {
+      font: inherit;
+      font-size: 0.9rem;
+      font-weight: 600;
+      border-radius: 8px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      color: var(--fg);
+      padding: 0.5rem 0.85rem;
+      cursor: pointer;
+    }
+    button.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+    button:hover { filter: brightness(0.97); }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    .search {
+      min-width: min(280px, 100%);
+    }
+
+    .table-wrap {
+      overflow: auto;
+      max-height: min(70vh, 720px);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.82rem;
+      white-space: nowrap;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.55rem 0.7rem;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+    th {
+      position: sticky;
+      top: 0;
+      background: #f8fafb;
+      color: var(--muted);
+      font-weight: 650;
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      z-index: 1;
+      cursor: pointer;
+      user-select: none;
+    }
+    th:hover { color: var(--fg); }
+    th .sort { opacity: 0.45; margin-left: 0.2rem; }
+    tbody tr:hover { background: #f7faf8; }
+    td.num { font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 0.8rem; }
+    td.muted { color: var(--muted); }
+
+    .pill {
+      display: inline-block;
+      padding: 0.12rem 0.45rem;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 650;
+    }
+    .pill.ongoing { background: var(--info-bg); color: var(--info); }
+    .pill.expired { background: #f2f4f7; color: #475467; }
+    .pill.converted { background: var(--ok-bg); color: var(--ok); }
+    .pill.cancelled { background: var(--danger-bg); color: var(--danger); }
+    .pill.yes { background: var(--accent-soft); color: var(--accent); }
+    .pill.no { background: #f2f4f7; color: #667085; }
+    .pill.enterprise { background: #eef2ff; color: #3538cd; }
+    .pill.standard { background: #f4f3ff; color: #5925dc; }
+
+    .notes {
+      margin-top: 0.75rem;
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    .notes summary { cursor: pointer; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Trial Extension Dashboard</h1>
+        <p class="sub">Account-level visibility into every trial — original setup, extensions &amp; overrides, status, and post-conversion MRR. Each trial instance is its own record.</p>
+      </div>
+      <div class="meta" id="meta"></div>
+    </header>
+
+    <div id="status">Loading…</div>
+
+    <section class="kpis" id="kpis" hidden></section>
+
+    <section class="panel" id="filters-panel" hidden>
+      <div class="panel-h">Filters</div>
+      <div class="panel-b">
+        <div class="filters">
+          <label>Trial start from
+            <input type="date" id="f-start-from" />
+          </label>
+          <label>Trial start to
+            <input type="date" id="f-start-to" />
+          </label>
+          <label>Trial type
+            <select id="f-type"><option value="">All</option></select>
+          </label>
+          <label>Trial status
+            <select id="f-status"><option value="">All</option></select>
+          </label>
+          <label>Extended
+            <select id="f-extended">
+              <option value="">All</option>
+              <option value="Yes">Extended</option>
+              <option value="No">Not extended</option>
+            </select>
+          </label>
+          <label>Limit type
+            <select id="f-limit-type">
+              <option value="">All</option>
+              <option value="Default">Default</option>
+              <option value="Custom">Custom</option>
+            </select>
+          </label>
+          <label>Converted
+            <select id="f-converted">
+              <option value="">All</option>
+              <option value="Yes">Converted</option>
+              <option value="No">Not converted</option>
+            </select>
+          </label>
+          <label>AE name
+            <select id="f-ae"><option value="">All</option></select>
+          </label>
+          <div class="filter-actions">
+            <button type="button" id="btn-reset">Reset</button>
+            <button type="button" class="primary" id="btn-refresh" title="Force refresh from source">Refresh data</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="table-panel" hidden>
+      <div class="panel-h">Trials</div>
+      <div class="panel-b">
+        <div class="toolbar">
+          <span id="row-count"></span>
+          <input class="search" type="search" id="f-search" placeholder="Search account, UID, AE…" />
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead id="thead"></thead>
+            <tbody id="tbody"></tbody>
+          </table>
+        </div>
+        <details class="notes">
+          <summary>Field mapping notes</summary>
+          <div id="field-notes"></div>
+        </details>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const COLUMNS = [
+      { key: "accountName", label: "Account" },
+      { key: "accountUid", label: "UID" },
+      { key: "opportunityId", label: "Opportunity" },
+      { key: "trialType", label: "Type", render: "type" },
+      { key: "trialSegment", label: "Segment" },
+      { key: "aeName", label: "AE" },
+      { key: "trialStartDate", label: "Trial start" },
+      { key: "originalTrialEndDate", label: "Orig. end" },
+      { key: "originalTrialDurationDays", label: "Orig. days", render: "num" },
+      { key: "trialExtended", label: "Extended", render: "yn" },
+      { key: "extensionDate", label: "Extension date" },
+      { key: "extendedTrialEndDate", label: "Ext. end" },
+      { key: "additionalDaysProvided", label: "Extra days", render: "num" },
+      { key: "currentTrialEndDate", label: "Current end" },
+      { key: "currentTotalTrialDurationDays", label: "Total days", render: "num" },
+      { key: "currentTrialStatus", label: "Status", render: "status" },
+      { key: "usageLimitApplied", label: "Usage limit", render: "limit" },
+      { key: "limitType", label: "Limit type" },
+      { key: "limitOverridden", label: "Limit override", render: "yn" },
+      { key: "limitOverrideDate", label: "Override date" },
+      { key: "convertedToPaid", label: "Converted", render: "yn" },
+      { key: "closedWonDate", label: "Closed-won" },
+      { key: "mrrGenerated", label: "MRR", render: "money" },
+      { key: "daysTrialToClosedWon", label: "Days to CW", render: "num" },
+      { key: "aeConversionOwner", label: "AE (conversion)" },
+    ];
+
+    let DATA = null;
+    let sortKey = "trialStartDate";
+    let sortDir = "desc";
+
+    function money(n) {
+      if (n == null || n === "") return "—";
+      return Number(n).toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
+    }
+
+    function escapeHtml(v) {
+      return String(v ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function pill(text, cls) {
+      return `<span class="pill ${cls}">${escapeHtml(text)}</span>`;
+    }
+
+    function cell(col, row) {
+      const v = row[col.key];
+      if (col.render === "status") {
+        const cls = String(v || "").toLowerCase();
+        return `<td>${pill(v || "—", cls)}</td>`;
+      }
+      if (col.render === "type") {
+        const cls = String(v || "").toLowerCase();
+        return `<td>${pill(v || "—", cls)}</td>`;
+      }
+      if (col.render === "yn") {
+        return `<td>${pill(v || "No", v === "Yes" ? "yes" : "no")}</td>`;
+      }
+      if (col.render === "money") {
+        return `<td class="num">${escapeHtml(v ? money(v) : "—")}</td>`;
+      }
+      if (col.render === "limit") {
+        if (v == null || v === "") return `<td class="muted">—</td>`;
+        if (String(v).toLowerCase() === "unlimited") {
+          return `<td>${pill("Unlimited", "yes")}</td>`;
+        }
+        return `<td class="num">${escapeHtml(v)}</td>`;
+      }
+      if (col.render === "num") {
+        return `<td class="num">${v == null || v === "" ? "—" : escapeHtml(v)}</td>`;
+      }
+      if (v == null || v === "") return `<td class="muted">—</td>`;
+      return `<td>${escapeHtml(v)}</td>`;
+    }
+
+    function fillSelect(id, values) {
+      const el = document.getElementById(id);
+      const keep = el.value;
+      el.innerHTML = '<option value="">All</option>' +
+        values.map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
+      if ([...el.options].some((o) => o.value === keep)) el.value = keep;
+    }
+
+    function renderKpis(summary) {
+      const items = [
+        { label: "Trials started", value: summary.totalTrialsStarted },
+        { label: "Ongoing", value: summary.ongoingTrials },
+        { label: "Extended", value: summary.trialsExtended },
+        { label: "Converted", value: summary.trialsConverted },
+        { label: "Conversion rate", value: `${summary.trialToPaidConversionRate}%` },
+        { label: "Total MRR", value: money(summary.totalMrrGenerated) },
+        { label: "Avg original duration", value: `${summary.avgOriginalTrialDurationDays}d` },
+        { label: "Avg final duration", value: `${summary.avgFinalTrialDurationDays}d` },
+        { label: "Avg days to conversion", value: `${summary.avgDaysTrialToConversion}d` },
+      ];
+      const root = document.getElementById("kpis");
+      root.hidden = false;
+      root.innerHTML = items.map((i) => `
+        <div class="kpi">
+          <div class="label">${escapeHtml(i.label)}</div>
+          <div class="value">${escapeHtml(i.value)}</div>
+          ${i.hint ? `<div class="hint">${escapeHtml(i.hint)}</div>` : ""}
+        </div>
+      `).join("");
+    }
+
+    function filteredRecords() {
+      const from = document.getElementById("f-start-from").value;
+      const to = document.getElementById("f-start-to").value;
+      const type = document.getElementById("f-type").value;
+      const status = document.getElementById("f-status").value;
+      const extended = document.getElementById("f-extended").value;
+      const limitType = document.getElementById("f-limit-type").value;
+      const converted = document.getElementById("f-converted").value;
+      const ae = document.getElementById("f-ae").value;
+      const q = document.getElementById("f-search").value.trim().toLowerCase();
+
+      let rows = DATA.records.slice();
+      rows = rows.filter((r) => {
+        if (from && (!r.trialStartDate || r.trialStartDate < from)) return false;
+        if (to && (!r.trialStartDate || r.trialStartDate > to)) return false;
+        if (type && r.trialType !== type) return false;
+        if (status && r.currentTrialStatus !== status) return false;
+        if (extended && r.trialExtended !== extended) return false;
+        if (limitType && r.limitType !== limitType) return false;
+        if (converted && r.convertedToPaid !== converted) return false;
+        if (ae && r.aeName !== ae) return false;
+        if (q) {
+          const hay = [r.accountName, r.accountUid, r.aeName, r.email, r.opportunityId]
+            .join(" ")
+            .toLowerCase();
+          if (!hay.includes(q)) return false;
+        }
+        return true;
+      });
+
+      rows.sort((a, b) => {
+        const av = a[sortKey];
+        const bv = b[sortKey];
+        if (av == null && bv == null) return 0;
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        if (typeof av === "number" && typeof bv === "number") {
+          return sortDir === "asc" ? av - bv : bv - av;
+        }
+        const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true });
+        return sortDir === "asc" ? cmp : -cmp;
+      });
+      return rows;
+    }
+
+    function summarize(rows) {
+      const total = rows.length;
+      const ongoing = rows.filter((r) => r.currentTrialStatus === "Ongoing").length;
+      const extended = rows.filter((r) => r.trialExtended === "Yes").length;
+      const converted = rows.filter((r) => r.convertedToPaid === "Yes");
+      const totalMrr = converted.reduce((s, r) => s + (Number(r.mrrGenerated) || 0), 0);
+      const avg = (arr) => {
+        const v = arr.filter((n) => n != null && Number.isFinite(Number(n))).map(Number);
+        if (!v.length) return 0;
+        return Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 10) / 10;
+      };
+      return {
+        totalTrialsStarted: total,
+        ongoingTrials: ongoing,
+        trialsExtended: extended,
+        trialsConverted: converted.length,
+        trialToPaidConversionRate: total ? Math.round((converted.length / total) * 1000) / 10 : 0,
+        totalMrrGenerated: Math.round(totalMrr * 100) / 100,
+        avgOriginalTrialDurationDays: avg(rows.map((r) => r.originalTrialDurationDays)),
+        avgFinalTrialDurationDays: avg(rows.map((r) => r.currentTotalTrialDurationDays)),
+        avgDaysTrialToConversion: avg(converted.map((r) => r.daysTrialToClosedWon)),
+      };
+    }
+
+    function renderTable() {
+      const rows = filteredRecords();
+      renderKpis(summarize(rows));
+      document.getElementById("row-count").textContent =
+        `${rows.length} of ${DATA.records.length} trials`;
+
+      const thead = document.getElementById("thead");
+      thead.innerHTML = "<tr>" + COLUMNS.map((c) => {
+        const mark = c.key === sortKey ? (sortDir === "asc" ? "▲" : "▼") : "";
+        return `<th data-key="${c.key}">${escapeHtml(c.label)}<span class="sort">${mark}</span></th>`;
+      }).join("") + "</tr>";
+
+      thead.querySelectorAll("th").forEach((th) => {
+        th.addEventListener("click", () => {
+          const key = th.getAttribute("data-key");
+          if (sortKey === key) sortDir = sortDir === "asc" ? "desc" : "asc";
+          else { sortKey = key; sortDir = "desc"; }
+          renderTable();
+        });
+      });
+
+      const tbody = document.getElementById("tbody");
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="${COLUMNS.length}" class="muted">No trials match these filters.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = rows.map((r) =>
+        "<tr>" + COLUMNS.map((c) => cell(c, r)).join("") + "</tr>"
+      ).join("");
+    }
+
+    function wireFilters() {
+      [
+        "f-start-from", "f-start-to", "f-type", "f-status",
+        "f-extended", "f-limit-type", "f-converted", "f-ae", "f-search",
+      ].forEach((id) => {
+        document.getElementById(id).addEventListener("input", renderTable);
+        document.getElementById(id).addEventListener("change", renderTable);
+      });
+      document.getElementById("btn-reset").addEventListener("click", () => {
+        document.getElementById("f-start-from").value = "";
+        document.getElementById("f-start-to").value = "";
+        document.getElementById("f-type").value = "";
+        document.getElementById("f-status").value = "";
+        document.getElementById("f-extended").value = "";
+        document.getElementById("f-limit-type").value = "";
+        document.getElementById("f-converted").value = "";
+        document.getElementById("f-ae").value = "";
+        document.getElementById("f-search").value = "";
+        renderTable();
+      });
+      document.getElementById("btn-refresh").addEventListener("click", () => boot(true));
+    }
+
+    function renderShell() {
+      const demoBadge = DATA.demoMode ? `<span class="badge">DEMO DATA</span>` : "";
+      document.getElementById("meta").innerHTML =
+        `As of ${escapeHtml(DATA.asOfDate || "—")}<br/>` +
+        `Generated ${escapeHtml(DATA.generatedAt || "—")}${demoBadge}`;
+
+      fillSelect("f-type", DATA.filters.trialTypes || []);
+      fillSelect("f-status", DATA.filters.trialStatuses || []);
+      fillSelect("f-ae", DATA.filters.aeNames || []);
+
+      const notes = DATA.fieldNotes || {};
+      document.getElementById("field-notes").innerHTML =
+        "<ul>" +
+        Object.entries(notes).map(([k, v]) =>
+          `<li><strong>${escapeHtml(k)}</strong>: ${escapeHtml(v)}</li>`
+        ).join("") +
+        "</ul>";
+
+      document.getElementById("filters-panel").hidden = false;
+      document.getElementById("table-panel").hidden = false;
+      renderTable();
+    }
+
+    async function boot(forceRefresh) {
+      const status = document.getElementById("status");
+      status.className = "";
+      status.textContent = forceRefresh ? "Refreshing…" : "Loading…";
+      try {
+        const health = await fetch("/api/health");
+        const h = await health.json();
+        if (!h.demoMode && !h.bigqueryConfigured) {
+          status.className = "error";
+          status.textContent = "BigQuery is not configured. Set env vars or DEMO_MODE=1.";
+          return;
+        }
+
+        const url = forceRefresh ? "/api/data?refresh=1" : "/api/data";
+        const res = await fetch(url, { credentials: "same-origin" });
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}));
+          throw new Error(body.error || `API ${res.status}`);
+        }
+        DATA = await res.json();
+        status.textContent =
+          `${DATA.rowCount ?? 0} trials loaded` +
+          (DATA.demoMode ? " · demo mode" : "") +
+          (res.headers.get("X-Data-Stale") === "1" ? " · stale cache" : "");
+        renderShell();
+      } catch (err) {
+        status.className = "error";
+        status.textContent = String(err.message || err);
+      }
+    }
+
+    wireFilters();
+    boot(false);
+  </script>
+</body>
+</html>

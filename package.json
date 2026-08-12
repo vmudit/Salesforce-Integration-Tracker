@@ -1,0 +1,21 @@
+{
+  "name": "trial-extension-dashboard",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Trial Extension dashboard — Express + BigQuery + single-file HTML",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "check": "node --check server.js && node --check src/bigquery.js && node --check src/queries.js && node --check src/transform.js && node --check src/data-service.js && node --check src/diagnostics.js && node --check src/scheduler.js && node --check src/demo-data.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@google-cloud/bigquery": "^8.3.1",
+    "compression": "^1.7.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2"
+  }
+}
