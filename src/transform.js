@@ -54,12 +54,18 @@ function trialSegment(row) {
 }
 
 function aeName(row) {
-  return (
-    coerceString(row.ae_owner_name).trim() ||
-    coerceString(row.sfdc_owner_name).trim() ||
-    coerceString(row.property_sales_team_owner).trim() ||
-    ""
-  );
+  const candidates = [
+    coerceString(row.ae_owner_name).trim(),
+    coerceString(row.sfdc_owner_name).trim(),
+    coerceString(row.property_sales_team_owner).trim(),
+  ];
+  for (const name of candidates) {
+    if (!name) continue;
+    // HubSpot sometimes stores owner id in property_sales_team_owner
+    if (/^\d+$/.test(name)) continue;
+    return name;
+  }
+  return "";
 }
 
 function isCancelledStatus(status) {
