@@ -17,7 +17,7 @@ function buildDemoRows() {
     return d;
   };
 
-  const aes = ["Priya Sharma", "Jordan Lee", "Sam Okonkwo", "Alex Rivera", ""];
+  const aes = ["", "", "", "", ""];
 
   const seeds = [
     {

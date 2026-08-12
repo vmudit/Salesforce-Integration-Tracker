@@ -277,6 +277,8 @@ function buildPayload(rows, opts = {}) {
     fieldNotes: {
       accountName: "Mapped from email until company name is added to the extract",
       trialInstance: "One row per TrialTime + opportunity_id — repeat trials are separate records",
+      aeName:
+        "From extract: ae_owner_name → SFDC owner name (SDR/BDR/PS/AE) → property_sales_team_owner",
       trialExtended:
         "Uses trial_extended_flag / ExtendedTrialEndTime when present; otherwise falls back to limit_overriden_flag",
       limitOverridden: "Driven by upgradeDowngradeLogs plan 1194→100 first hit per company",
@@ -284,6 +286,7 @@ function buildPayload(rows, opts = {}) {
         `Enterprise Default = ${ENTERPRISE_DEFAULT_USAGE_LIMIT}; Custom override → Unlimited (Sales managers: Vedant, Sandeep, Manpreet)`,
       limitType: "Default vs Custom — filterable per product requirements",
       currentTrialEndDate: "Latest of original end and extended end",
+      demoMode: "DEMO_MODE=1 serves synthetic accounts — AE names are blank until BigQuery is connected",
     },
   };
 

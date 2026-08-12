@@ -1,11 +1,14 @@
 -- Analyst reference copy of the Trial Extension extract.
 -- Runtime SQL lives in src/queries.js → buildExtractSql().
 --
--- Assumptions:
---   - Limit override = first upgrade previousPlanId 1194 → changedToPlanId 100
---   - Trial grain = rows with TrialTime IS NOT NULL from reporting_user_funnel_new_hs
---   - Subscription status / land_mrr from fact_user_master as of current_date()-1
---   - SFDC owner join = former dbt ref('sfdc_user_role_hs')
+-- Source query (stakeholder):
+--   hubspot_migration.reporting_user_funnel_new_hs
+--   + fact_user_master (cust status as of current_date()-1)
+--   + upgradeDowngradeLogs (1194 → 100 = limit override)
+--   + sfdc_user_role_hs (SDR/BDR/PS/AE) on owner_id
+--
+-- AE name precedence in the app:
+--   ae_owner_name → smp1.name → property_sales_team_owner
 
 WITH cust_status AS (
   SELECT DISTINCT
@@ -72,8 +75,10 @@ base AS (
   LEFT JOIN plan_upgrade_flag pu
     ON a.companyid = pu.companyid
   WHERE a.TrialTime IS NOT NULL
+    AND DATE(a.TrialTime) >= '2026-01-01'
 )
 
 SELECT *
 FROM base
-ORDER BY TrialTime DESC, email;
+ORDER BY TrialTime DESC, email
+;
