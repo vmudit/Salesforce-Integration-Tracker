@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Dashboard</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --fg: #e7ecf1;
+      --muted: #8b98a5;
+      --accent: #3d8bfd;
+      --line: #243040;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--fg);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    h1 { font-size: 1.5rem; margin: 0 0 0.25rem; }
+    p { color: var(--muted); margin: 0 0 1.5rem; }
+    #status { margin-bottom: 1rem; color: var(--muted); }
+    #status.error { color: #ff6b6b; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    th, td {
+      text-align: left;
+      padding: 0.6rem 0.75rem;
+      border-bottom: 1px solid var(--line);
+    }
+    th { color: var(--muted); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <h1>Dashboard</h1>
+  <p>Loads one JSON blob from <code>/api/data</code> (same pattern as Retention Pulse).</p>
+  <div id="status">Loading…</div>
+  <div id="app"></div>
+
+  <script>
+    async function boot() {
+      const status = document.getElementById("status");
+      const app = document.getElementById("app");
+      try {
+        const health = await fetch("/api/health");
+        const h = await health.json();
+        if (!h.bigqueryConfigured) {
+          status.className = "error";
+          status.textContent = "BigQuery is not configured. Set env vars and restart.";
+          return;
+        }
+
+        const res = await fetch("/api/data", { credentials: "same-origin" });
+        if (!res.ok) throw new Error(`API ${res.status}`);
+        const D = await res.json();
+
+        status.textContent =
+          `${D.rowCount ?? 0} rows · generated ${D.generatedAt || "—"}`;
+
+        const rows = D.records || [];
+        if (!rows.length) {
+          app.textContent = "No rows.";
+          return;
+        }
+
+        const keys = Object.keys(rows[0]);
+        const table = document.createElement("table");
+        table.innerHTML =
+          "<thead><tr>" +
+          keys.map((k) => `<th>${escapeHtml(k)}</th>`).join("") +
+          "</tr></thead><tbody>" +
+          rows
+            .slice(0, 200)
+            .map(
+              (r) =>
+                "<tr>" +
+                keys.map((k) => `<td>${escapeHtml(r[k])}</td>`).join("") +
+                "</tr>"
+            )
+            .join("") +
+          "</tbody>";
+        app.appendChild(table);
+      } catch (err) {
+        status.className = "error";
+        status.textContent = String(err.message || err);
+      }
+    }
+
+    function escapeHtml(v) {
+      return String(v ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    boot();
+  </script>
+</body>
+</html>

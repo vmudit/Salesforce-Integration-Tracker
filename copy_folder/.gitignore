@@ -1,0 +1,38 @@
+node_modules/
+.env
+.env.local
+.DS_Store
+*.log
+npm-debug.log*
+
+# ---------------------------------------------------------------------------
+# Credentials — never commit. The service-account JSON belongs in the
+# GOOGLE_APPLICATION_CREDENTIALS_JSON env var and nowhere else.
+# ---------------------------------------------------------------------------
+service-account.json
+credentials.json
+*-service-account*.json
+gcp-key*.json
+
+# ---------------------------------------------------------------------------
+# Generated / exported data. The dashboard reads BigQuery live, so none of this
+# should exist here — and if it does, it holds named customer revenue.
+# ---------------------------------------------------------------------------
+data/
+*.csv
+data.json
+dashboard.html
+fum_export*.csv
+
+# ---------------------------------------------------------------------------
+# Superseded package, kept locally for reference only. Contains 22,329 named
+# accounts with monthly MRR history across data.json, dashboard.html and
+# hubspot_segments.csv.
+# ---------------------------------------------------------------------------
+JustCall_Retention_Pulse_DEPLOY/
+JustCall_Retention_Pulse_v4.html
+JustCall Retention Pulse — Data Team Handoff.pdf
+
+# Working notes and reference material, not part of the deployed app.
+BIGQUERY_RAILWAY_GUIDE.md
+bigquery_check.js

@@ -143,16 +143,18 @@ app.use((req, res, next) => {
   return res.status(401).json({ error: "Unauthorized" });
 });
 
-// Railway healthcheck target. Returns 503 when unconfigured so a bad deploy
-// fails the healthcheck instead of silently serving an empty dashboard.
-// DEMO_MODE=1 is healthy without BigQuery (local UI review only).
+// Railway healthcheck target. Always return 200 once the HTTP server is up
+// (liveness). Data readiness is reported in the body — returning 503 here
+ // when BigQuery is missing causes Railway deploys to fail even though the
+ // process is healthy and can run with DEMO_MODE or wait for credentials.
 app.get("/api/health", (_req, res) => {
   const demo = demoModeEnabled();
   const configured = isBigQueryConfigured();
-  const healthy = demo || configured;
+  const dataReady = demo || configured;
   const last = getLastRefresh();
-  res.status(healthy ? 200 : 503).json({
-    status: healthy ? "ok" : "unavailable",
+  res.status(200).json({
+    status: dataReady ? "ok" : "degraded",
+    ready: dataReady,
     demoMode: demo,
     bigqueryConfigured: configured,
     projectId: configured ? getProjectId() : null,
@@ -163,7 +165,9 @@ app.get("/api/health", (_req, res) => {
       ? { at: REFRESH_AT, timeZone: REFRESH_TZ, nextRunAt: scheduler.nextRunAt() }
       : { at: null, timeZone: null, nextRunAt: null },
     timestamp: new Date().toISOString(),
-    ...(healthy ? {} : { error: "BigQuery credentials are not configured (or set DEMO_MODE=1)" }),
+    ...(dataReady
+      ? {}
+      : { warning: "BigQuery credentials are not configured (set DEMO_MODE=1 for synthetic data)" }),
   });
 });
 

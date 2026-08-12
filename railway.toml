@@ -1,6 +1,5 @@
 [build]
 builder = "NIXPACKS"
-# App lives at repo root on sarithakonudula/trial-extension — leave Root Directory empty.
 
 [deploy]
 startCommand = "npm start"
