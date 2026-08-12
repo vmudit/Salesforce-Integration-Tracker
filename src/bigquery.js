@@ -6,7 +6,10 @@ let credentialsCache = null;
 
 function parseCredentials() {
   if (credentialsCache) return credentialsCache;
-  const json = process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON;
+  const json =
+    process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON ||
+    process.env.Google_Credentials_JSON ||
+    process.env.GOOGLE_CREDENTIALS_JSON;
   if (!json) return null;
   try {
     credentialsCache = JSON.parse(json);

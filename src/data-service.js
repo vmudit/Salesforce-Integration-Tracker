@@ -6,7 +6,13 @@ const { buildDemoRows } = require("./demo-data");
 let lastRefresh = null;
 
 function demoModeEnabled() {
-  return process.env.DEMO_MODE === "1" || process.env.DEMO_MODE === "true";
+  const raw =
+    process.env.DEMO_MODE ??
+    process.env.Demo_Mode ??
+    process.env.demo_mode ??
+    "";
+  const v = String(raw).trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes";
 }
 
 function notConfigured() {
