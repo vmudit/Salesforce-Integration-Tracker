@@ -2,20 +2,18 @@
  * Synthetic rows shaped like the BigQuery extract — for local UI review
  * when DEMO_MODE=1 (no warehouse credentials required).
  *
- * Includes repeat trials for the same account (separate opportunity_ids)
- * and rows with true duration extensions vs limit-only overrides.
+ * All trials start on or after 2026-01-01 so the default dashboard window
+ * (from 1 Jan 2026) shows a coherent set.
  */
 function buildDemoRows() {
-  const today = new Date();
   const iso = (d) => d.toISOString().slice(0, 10);
-  const daysAgo = (n) => {
-    const d = new Date(today);
-    d.setDate(d.getDate() - n);
-    return d;
+  const parse = (yyyyMmDd) => {
+    const [y, m, d] = yyyyMmDd.split("-").map(Number);
+    return new Date(Date.UTC(y, m - 1, d));
   };
   const daysFrom = (base, n) => {
     const d = new Date(base);
-    d.setDate(d.getDate() + n);
+    d.setUTCDate(d.getUTCDate() + n);
     return d;
   };
 
@@ -26,7 +24,7 @@ function buildDemoRows() {
       email: "ops@acme.io",
       companyid: "1001",
       opportunity_id: "OPP-1001",
-      startOffset: 5,
+      startDate: "2026-08-07",
       duration: 14,
       type: "Enterprise Trial",
       returning: false,
@@ -36,13 +34,13 @@ function buildDemoRows() {
       converted: false,
       status: "trialing",
       mrr: null,
-      usageLimit: null, // Enterprise default 2000 applied in transform
+      usageLimit: null,
     },
     {
       email: "founder@brightly.co",
       companyid: "1002",
       opportunity_id: "OPP-1002",
-      startOffset: 20,
+      startDate: "2026-07-23",
       duration: 14,
       type: "Enterprise Trial",
       returning: false,
@@ -62,7 +60,7 @@ function buildDemoRows() {
       email: "team@northstar.app",
       companyid: "1003",
       opportunity_id: "OPP-1003",
-      startOffset: 40,
+      startDate: "2026-07-03",
       duration: 7,
       type: "Standard Trial",
       returning: true,
@@ -78,7 +76,7 @@ function buildDemoRows() {
       email: "hello@lumenhq.com",
       companyid: "1004",
       opportunity_id: "OPP-1004",
-      startOffset: 12,
+      startDate: "2026-07-31",
       duration: 21,
       type: "Enterprise Trial",
       returning: false,
@@ -97,7 +95,7 @@ function buildDemoRows() {
       email: "finance@cascade.io",
       companyid: "1005",
       opportunity_id: "OPP-1005",
-      startOffset: 60,
+      startDate: "2026-06-13",
       duration: 14,
       type: "Standard Trial",
       returning: false,
@@ -114,7 +112,7 @@ function buildDemoRows() {
       email: "ceo@orbitdesk.com",
       companyid: "1006",
       opportunity_id: "OPP-1006",
-      startOffset: 90,
+      startDate: "2026-05-14",
       duration: 14,
       type: "Enterprise Trial",
       returning: true,
@@ -130,7 +128,7 @@ function buildDemoRows() {
       email: "growth@pebble.so",
       companyid: "1007",
       opportunity_id: "OPP-1007",
-      startOffset: 3,
+      startDate: "2026-08-09",
       duration: 14,
       type: "Standard Trial",
       returning: false,
@@ -146,7 +144,7 @@ function buildDemoRows() {
       email: "vp@harborline.com",
       companyid: "1008",
       opportunity_id: "OPP-1008",
-      startOffset: 25,
+      startDate: "2026-07-18",
       duration: 30,
       type: "Enterprise Trial",
       returning: false,
@@ -166,7 +164,7 @@ function buildDemoRows() {
       email: "admin@quillmail.io",
       companyid: "1009",
       opportunity_id: "OPP-1009",
-      startOffset: 15,
+      startDate: "2026-07-28",
       duration: 7,
       type: "Standard Trial",
       returning: true,
@@ -182,7 +180,7 @@ function buildDemoRows() {
       email: "sales@vertexlabs.ai",
       companyid: "1010",
       opportunity_id: "OPP-1010",
-      startOffset: 8,
+      startDate: "2026-08-04",
       duration: 14,
       type: "Enterprise Trial",
       returning: false,
@@ -198,14 +196,13 @@ function buildDemoRows() {
       email: "cto@redwood.dev",
       companyid: "1011",
       opportunity_id: "OPP-1011",
-      startOffset: 45,
+      startDate: "2026-06-28",
       duration: 14,
       type: "Enterprise Trial",
       returning: false,
       ae: aes[0],
       override: true,
       overrideOnDay: 5,
-      // Limit override only — no duration extension (Sales manager FUP unlock)
       extended: false,
       converted: false,
       status: null,
@@ -216,7 +213,7 @@ function buildDemoRows() {
       email: "hello@mintpath.com",
       companyid: "1012",
       opportunity_id: "OPP-1012",
-      startOffset: 70,
+      startDate: "2026-06-03",
       duration: 14,
       type: "Standard Trial",
       returning: false,
@@ -229,12 +226,12 @@ function buildDemoRows() {
       mrr: 99,
       usageLimit: null,
     },
-    // Repeat trial for Acme — separate opportunity, must not overwrite OPP-1001
+    // Repeat trial for Acme — earlier instance in Jan 2026
     {
       email: "ops@acme.io",
       companyid: "1001",
       opportunity_id: "OPP-1001-B",
-      startOffset: 120,
+      startDate: "2026-01-15",
       duration: 14,
       type: "Enterprise Trial",
       returning: true,
@@ -249,12 +246,12 @@ function buildDemoRows() {
       mrr: 1200,
       usageLimit: null,
     },
-    // Earlier expired trial for Cascade, then a later converted one above
+    // Cascade first trial in January, later converted trial above
     {
       email: "finance@cascade.io",
       companyid: "1005",
       opportunity_id: "OPP-1005-A",
-      startOffset: 200,
+      startDate: "2026-01-08",
       duration: 14,
       type: "Standard Trial",
       returning: false,
@@ -266,10 +263,79 @@ function buildDemoRows() {
       mrr: null,
       usageLimit: null,
     },
+    {
+      email: "hello@northwind.co",
+      companyid: "1013",
+      opportunity_id: "OPP-1013",
+      startDate: "2026-01-02",
+      duration: 14,
+      type: "Enterprise Trial",
+      returning: false,
+      ae: aes[1],
+      override: false,
+      extended: false,
+      converted: true,
+      convertOnDay: 14,
+      status: "active",
+      mrr: 520,
+      usageLimit: null,
+    },
+    {
+      email: "ops@brightpath.io",
+      companyid: "1014",
+      opportunity_id: "OPP-1014",
+      startDate: "2026-02-10",
+      duration: 21,
+      type: "Standard Trial",
+      returning: false,
+      ae: "",
+      override: false,
+      extended: true,
+      extendOnDay: 14,
+      extraDays: 7,
+      converted: false,
+      status: null,
+      mrr: null,
+      usageLimit: null,
+    },
+    {
+      email: "team@cobalt.ai",
+      companyid: "1015",
+      opportunity_id: "OPP-1015",
+      startDate: "2026-03-05",
+      duration: 14,
+      type: "Enterprise Trial",
+      returning: false,
+      ae: aes[2],
+      override: true,
+      overrideOnDay: 3,
+      extended: false,
+      converted: true,
+      convertOnDay: 16,
+      status: "active",
+      mrr: 2100,
+      usageLimit: "Unlimited",
+    },
+    {
+      email: "growth@maplehq.com",
+      companyid: "1016",
+      opportunity_id: "OPP-1016",
+      startDate: "2026-04-20",
+      duration: 14,
+      type: "Standard Trial",
+      returning: true,
+      ae: aes[3],
+      override: false,
+      extended: false,
+      converted: false,
+      status: "canceled",
+      mrr: null,
+      usageLimit: null,
+    },
   ];
 
   return seeds.map((s) => {
-    const trialStart = daysAgo(s.startOffset);
+    const trialStart = parse(s.startDate);
     const trialEnd = daysFrom(trialStart, s.duration);
     const customerTime = s.converted ? daysFrom(trialStart, s.convertOnDay) : null;
     const overrideDate =

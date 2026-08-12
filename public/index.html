@@ -729,6 +729,16 @@
       ).join("");
     }
 
+    const DEFAULT_START_FROM = "2026-01-01";
+
+    function applyDefaultDateFilter() {
+      const level = document.getElementById("f-date-level");
+      if (level) level.value = "day";
+      syncDateLevelInputs();
+      document.getElementById("f-start-from").value = DEFAULT_START_FROM;
+      document.getElementById("f-start-to").value = "";
+    }
+
     function wireFilters() {
       [
         "f-start-from", "f-start-to", "f-type", "f-status",
@@ -739,13 +749,13 @@
       });
       document.getElementById("f-date-level").addEventListener("change", () => {
         syncDateLevelInputs();
+        if (document.getElementById("f-date-level").value === "day") {
+          document.getElementById("f-start-from").value = DEFAULT_START_FROM;
+        }
         renderTable();
       });
       document.getElementById("btn-reset").addEventListener("click", () => {
-        document.getElementById("f-date-level").value = "day";
-        syncDateLevelInputs();
-        document.getElementById("f-start-from").value = "";
-        document.getElementById("f-start-to").value = "";
+        applyDefaultDateFilter();
         document.getElementById("f-type").value = "";
         document.getElementById("f-status").value = "";
         document.getElementById("f-extended").value = "";
@@ -773,6 +783,7 @@
 
       document.getElementById("filters-panel").hidden = false;
       document.getElementById("table-panel").hidden = false;
+      applyDefaultDateFilter();
       renderTable();
     }
 

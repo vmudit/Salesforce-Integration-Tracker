@@ -6,7 +6,7 @@
  */
 const { getProjectId } = require("./bigquery");
 
-const DEFAULT_RANGE_START = "2023-01-01";
+const DEFAULT_RANGE_START = "2026-01-01";
 
 const PROJECT_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{2,62}$/;
 const NAME_RE = /^[A-Za-z_][A-Za-z0-9_]{0,1023}$/;
