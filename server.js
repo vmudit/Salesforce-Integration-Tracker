@@ -90,10 +90,10 @@ app.use((_req, res, next) => {
     // customer data to a third-party host.
     "default-src 'self'; " +
       "script-src 'self' 'unsafe-inline'; " +
-      "style-src 'self' 'unsafe-inline'; " +
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
       "img-src 'self' data:; " +
       "connect-src 'self'; " +
-      "font-src 'self'; " +
+      "font-src 'self' https://fonts.gstatic.com data:; " +
       "object-src 'none'; " +
       "base-uri 'none'; " +
       "form-action 'none'; " +
