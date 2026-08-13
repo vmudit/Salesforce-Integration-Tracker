@@ -100,6 +100,7 @@
       z-index: 20;
       margin-bottom: 0.75rem;
       box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+      overflow: visible;
     }
 
     .scroll-body {
@@ -221,6 +222,65 @@
     .filters input[type="date"] {
       font-size: 0.7rem;
       padding: 0.18rem 0.45rem;
+    }
+    .ms {
+      position: relative;
+    }
+    .ms-toggle {
+      width: 100%;
+      height: 2rem;
+      min-height: 2rem;
+      padding: 0.22rem 0.45rem;
+      font-size: 0.74rem;
+      font-weight: 600;
+      text-align: left;
+      border-radius: 8px;
+      background: var(--surface-2);
+      color: var(--fg);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .ms-toggle:hover {
+      background: #1e293b;
+      color: var(--fg);
+    }
+    .ms-menu {
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      z-index: 40;
+      background: #0f172a;
+      border: 1px solid var(--line-2);
+      border-radius: 8px;
+      padding: 0.3rem;
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+    }
+    .ms-option {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.28rem 0.4rem;
+      margin: 0;
+      font-size: 0.74rem;
+      font-weight: 500;
+      text-transform: none;
+      letter-spacing: normal;
+      color: var(--fg);
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .ms-option:hover { background: #1e293b; }
+    .ms-option input {
+      width: auto;
+      min-width: 0;
+      height: auto;
+      min-height: 0;
+      margin: 0;
+      padding: 0;
+      accent-color: var(--accent);
     }
     input, select {
       font: inherit;
@@ -500,7 +560,10 @@
             <select id="f-type"><option value="">All</option></select>
           </label>
           <label>Trial status
-            <select id="f-status"><option value="">All</option></select>
+            <div class="ms" id="f-status">
+              <button type="button" class="ms-toggle" id="f-status-toggle">All</button>
+              <div class="ms-menu" id="f-status-menu" hidden></div>
+            </div>
           </label>
           <label>Extended
             <select id="f-extended">
@@ -514,13 +577,6 @@
               <option value="">All</option>
               <option value="Default">Default</option>
               <option value="Custom">Custom</option>
-            </select>
-          </label>
-          <label>Converted
-            <select id="f-converted">
-              <option value="">All</option>
-              <option value="Yes">Converted</option>
-              <option value="No">Not converted</option>
             </select>
           </label>
           <label>AE name
@@ -659,6 +715,7 @@
     let filteredCache = null;
     let filterCacheKey = "";
     let searchTimer = null;
+    let selectedStatuses = new Set();
 
     function activeColumns() {
       if (mainTab === "summary") return SUMMARY_COLUMNS;
@@ -724,6 +781,43 @@
       el.innerHTML = '<option value="">All</option>' +
         values.map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
       if ([...el.options].some((o) => o.value === keep)) el.value = keep;
+    }
+
+    function statusToggleLabel() {
+      if (!selectedStatuses.size) return "All";
+      return [...selectedStatuses].join(", ");
+    }
+
+    function syncStatusToggle() {
+      document.getElementById("f-status-toggle").textContent = statusToggleLabel();
+    }
+
+    function fillStatusMulti(values) {
+      const menu = document.getElementById("f-status-menu");
+      selectedStatuses = new Set([...selectedStatuses].filter((v) => values.includes(v)));
+      menu.innerHTML = values.map((v) => `
+        <label class="ms-option">
+          <input type="checkbox" value="${escapeHtml(v)}" ${selectedStatuses.has(v) ? "checked" : ""} />
+          ${escapeHtml(v)}
+        </label>
+      `).join("");
+      menu.querySelectorAll("input").forEach((input) => {
+        input.addEventListener("change", () => {
+          if (input.checked) selectedStatuses.add(input.value);
+          else selectedStatuses.delete(input.value);
+          syncStatusToggle();
+          onFilterChange();
+        });
+      });
+      syncStatusToggle();
+    }
+
+    function resetStatusMulti() {
+      selectedStatuses = new Set();
+      document.querySelectorAll("#f-status-menu input").forEach((input) => {
+        input.checked = false;
+      });
+      syncStatusToggle();
     }
 
     function renderKpis(summary) {
@@ -840,10 +934,9 @@
         document.getElementById("f-start-from").value,
         document.getElementById("f-start-to").value,
         document.getElementById("f-type").value,
-        document.getElementById("f-status").value,
+        [...selectedStatuses].join(","),
         document.getElementById("f-extended").value,
         document.getElementById("f-limit-type").value,
-        document.getElementById("f-converted").value,
         document.getElementById("f-ae").value,
         document.getElementById("f-search").value.trim().toLowerCase(),
         sortKey,
@@ -861,10 +954,9 @@
       const from = periodToRange(level, fromRaw, "from");
       const to = periodToRange(level, toRaw, "to");
       const type = document.getElementById("f-type").value;
-      const status = document.getElementById("f-status").value;
+      const statuses = [...selectedStatuses];
       const extended = document.getElementById("f-extended").value;
       const limitType = document.getElementById("f-limit-type").value;
-      const converted = document.getElementById("f-converted").value;
       const ae = document.getElementById("f-ae").value;
       const q = document.getElementById("f-search").value.trim().toLowerCase();
 
@@ -872,10 +964,9 @@
         if (from && (!r.trialStartDate || r.trialStartDate < from)) return false;
         if (to && (!r.trialStartDate || r.trialStartDate > to)) return false;
         if (type && r.trialType !== type) return false;
-        if (status && r.currentTrialStatus !== status) return false;
+        if (statuses.length && !statuses.includes(r.currentTrialStatus)) return false;
         if (extended && r.trialExtended !== extended) return false;
         if (limitType && r.limitType !== limitType) return false;
-        if (converted && r.convertedToPaid !== converted) return false;
         if (ae && r.aeName !== ae) return false;
         if (q) {
           const hay = [r.accountName, r.companyName, r.accountUid, r.aeName, r.email, r.opportunityId]
@@ -1023,10 +1114,21 @@
 
     function wireFilters() {
       [
-        "f-start-from", "f-start-to", "f-type", "f-status",
-        "f-extended", "f-limit-type", "f-converted", "f-ae",
+        "f-start-from", "f-start-to", "f-type",
+        "f-extended", "f-limit-type", "f-ae",
       ].forEach((id) => {
         document.getElementById(id).addEventListener("change", onFilterChange);
+      });
+      document.getElementById("f-status-toggle").addEventListener("click", (event) => {
+        event.stopPropagation();
+        const menu = document.getElementById("f-status-menu");
+        menu.hidden = !menu.hidden;
+      });
+      document.addEventListener("click", (event) => {
+        const wrap = document.getElementById("f-status");
+        if (!wrap.contains(event.target)) {
+          document.getElementById("f-status-menu").hidden = true;
+        }
       });
       document.getElementById("f-search").addEventListener("input", () => {
         clearTimeout(searchTimer);
@@ -1042,10 +1144,9 @@
       document.getElementById("btn-reset").addEventListener("click", () => {
         applyDefaultDateFilter();
         document.getElementById("f-type").value = "";
-        document.getElementById("f-status").value = "";
+        resetStatusMulti();
         document.getElementById("f-extended").value = "";
         document.getElementById("f-limit-type").value = "";
-        document.getElementById("f-converted").value = "";
         document.getElementById("f-ae").value = "";
         document.getElementById("f-search").value = "";
         onFilterChange();
@@ -1096,7 +1197,7 @@
 
     function renderShell() {
       fillSelect("f-type", DATA.filters.trialTypes || []);
-      fillSelect("f-status", DATA.filters.trialStatuses || []);
+      fillStatusMulti(DATA.filters.trialStatuses || []);
       fillSelect("f-ae", DATA.filters.aeNames || []);
 
       const notes = DATA.fieldNotes || {};
