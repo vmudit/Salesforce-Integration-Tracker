@@ -7,9 +7,8 @@
  * - Trial type    → Enterprise if plan/type contains "enterprise", else Standard
  * - Trial segment → Returning if returning/reactivation flags truthy, else New
  * - AE name       → ae_owner_name → sfdc_owner_name → property_sales_team_owner
- * - Limit override → limit_overriden_flag / overriden_date
- * - Trial extension → trial_extended_flag / ExtendedTrialEndTime / additional_days_provided
- *   (falls back to limit override as the extension signal when extension cols are absent)
+ * - Limit type    → Default = Enterprise trial (plan 1194); Custom = 1194→100 override
+ * - Trial extension → current trial length > 14 days (standard trial), any plan type
  * - Converted     → CustomerTime present
  * - Status        → Converted | Cancelled | Ongoing | Expired
  * - Usage limit   → usage_limit_applied when present
@@ -99,15 +98,6 @@ function dayDiff(startStr, endStr) {
   return Math.round((b - a) / 86400000);
 }
 
-function hasExplicitExtensionFields(row) {
-  return (
-    row.trial_extended_flag != null && row.trial_extended_flag !== "" ||
-    row.ExtendedTrialEndTime != null && row.ExtendedTrialEndTime !== "" ||
-    row.additional_days_provided != null && row.additional_days_provided !== "" ||
-    row.extension_date != null && row.extension_date !== ""
-  );
-}
-
 function mapRow(row, index, todayStr) {
   const trialStart = toDateStr(row.TrialTime);
   const originalEnd = toDateStr(row.TrialEndTime);
@@ -127,11 +117,6 @@ function mapRow(row, index, todayStr) {
     additionalDays = dayDiff(originalEnd, extendedEnd);
   }
 
-  const explicitExt = hasExplicitExtensionFields(row);
-  const trialExtended = explicitExt
-    ? truthyFlag(row.trial_extended_flag) || Boolean(extendedEnd) || (additionalDays != null && additionalDays > 0)
-    : limitOverridden;
-
   const originalDuration =
     row.trial_days_given != null && row.trial_days_given !== ""
       ? coerceNumber(row.trial_days_given)
@@ -142,6 +127,17 @@ function mapRow(row, index, todayStr) {
     originalDuration != null && additionalDays != null
       ? originalDuration + additionalDays
       : dayDiff(trialStart, effectiveEnd) ?? originalDuration;
+
+  const extendedDaysBeyond14 =
+    currentDuration != null && Number.isFinite(currentDuration)
+      ? Math.max(0, currentDuration - 14)
+      : null;
+  // Extended = basic 14-day trial was lengthened, for Standard and Enterprise alike.
+  // Do not treat a 1194→100 FUP override as a trial-duration extension.
+  const trialExtended = extendedDaysBeyond14 != null && extendedDaysBeyond14 > 0;
+  if (trialExtended && (additionalDays == null || additionalDays <= 0)) {
+    additionalDays = extendedDaysBeyond14;
+  }
 
   const daysToConversion =
     row.trial_to_cust_days != null && row.trial_to_cust_days !== ""
@@ -180,10 +176,11 @@ function mapRow(row, index, todayStr) {
     coerceString(row.companyName).trim() ||
     (email.includes("@") ? email.split("@")[1] : "") ||
     "";
-  const extendedDaysBeyond14 =
-    currentDuration != null && Number.isFinite(currentDuration)
-      ? Math.max(0, currentDuration - 14)
-      : null;
+  const limitType = limitOverridden
+    ? "Custom"
+    : type === "Enterprise"
+      ? "Default"
+      : "";
 
   return {
     id: `${coerceString(row.companyid) || "x"}-${trialStart || index}-${coerceString(row.opportunity_id) || index}`,
@@ -200,7 +197,7 @@ function mapRow(row, index, todayStr) {
     originalTrialEndDate: originalEnd,
     originalTrialDurationDays: originalDuration,
     trialExtended: trialExtended ? "Yes" : "No",
-    extensionDate: trialExtended ? extensionDate || overrideDate : null,
+    extensionDate: trialExtended ? extensionDate : null,
     extendedTrialEndDate: extendedEnd,
     additionalDaysProvided: trialExtended ? additionalDays : null,
     currentTotalTrialDurationDays: currentDuration,
@@ -208,7 +205,7 @@ function mapRow(row, index, todayStr) {
     currentTrialEndDate: effectiveEnd,
     currentTrialStatus: status,
     usageLimitApplied: usageLimit,
-    limitType: limitOverridden ? "Custom" : "Default",
+    limitType,
     limitOverridden: limitOverridden ? "Yes" : "No",
     limitOverrideDate: overrideDate,
     convertedToPaid: converted ? "Yes" : "No",
@@ -289,7 +286,7 @@ function filterOptions(records) {
   const aes = [...new Set(records.map((r) => r.aeName).filter(Boolean))].sort();
   const types = [...new Set(records.map((r) => r.trialType))].sort();
   const statuses = [...new Set(records.map((r) => r.currentTrialStatus))].sort();
-  const limitTypes = [...new Set(records.map((r) => r.limitType).filter(Boolean))].sort();
+  const limitTypes = [...new Set(records.map((r) => r.limitType).filter((v) => v === "Default" || v === "Custom"))].sort();
   return { aeNames: aes, trialTypes: types, trialStatuses: statuses, limitTypes };
 }
 
@@ -339,11 +336,11 @@ function buildPayload(rows, opts = {}) {
       aeName:
         "From extract: ae_owner_name → SFDC owner name (SDR/BDR/PS/AE) → property_sales_team_owner",
       trialExtended:
-        "Uses trial_extended_flag / ExtendedTrialEndTime when present; otherwise falls back to limit_overriden_flag",
-      limitOverridden: "Driven by upgradeDowngradeLogs plan 1194→100 first hit per company",
+        "Yes when current trial duration is greater than 14 days, for any trial type",
+      limitOverridden: "Custom = upgradeDowngradeLogs 1194→100 (enterprise FUP made custom)",
       usageLimitApplied:
         `Enterprise Default = ${ENTERPRISE_DEFAULT_USAGE_LIMIT}; Custom override → Unlimited (Sales managers: Vedant, Sandeep, Manpreet)`,
-      limitType: "Default vs Custom — filterable per product requirements",
+      limitType: "Default = Enterprise trial on plan 1194; Custom = enterprise made custom (plan 100)",
       currentTrialEndDate: "Latest of original end and extended end",
       demoMode: "DEMO_MODE=1 serves synthetic accounts — AE names are blank until BigQuery is connected",
     },

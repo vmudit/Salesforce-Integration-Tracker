@@ -4,7 +4,7 @@
 -- Source query (stakeholder):
 --   hubspot_migration.reporting_user_funnel_new_hs
 --   + fact_user_master (cust status as of current_date()-1)
---   + upgradeDowngradeLogs (1194 → 100 = limit override)
+--   + upgradeDowngradeLogs (1194 → 100 = Custom enterprise limit; Default = Enterprise without this upgrade)
 --   + sfdc_user_role_hs (SDR/BDR/PS/AE) on owner_id
 --
 -- AE name precedence in the app:

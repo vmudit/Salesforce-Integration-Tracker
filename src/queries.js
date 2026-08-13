@@ -113,7 +113,8 @@ function extractParams() {
 /**
  * Trial base extract.
  * Assumptions baked into SQL (confirm with stakeholders):
- * - Limit override = first upgrade from previousPlanId → changedToPlanId
+ * - Limit override / Custom = first upgrade from previousPlanId (1194) → changedToPlanId (100)
+ * - Default limit type is derived in transform for Enterprise trials without that upgrade
  * - Only rows with TrialTime IS NOT NULL
  * - cust_status from FUM as of current_date()-1
  */
