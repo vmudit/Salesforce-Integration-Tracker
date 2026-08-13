@@ -80,5 +80,17 @@ base AS (
 
 SELECT *
 FROM base
+QUALIFY ROW_NUMBER() OVER (
+  PARTITION BY COALESCE(CAST(companyid AS STRING), CONCAT('email:', CAST(email AS STRING)))
+  ORDER BY
+    CASE WHEN CustomerTime IS NOT NULL THEN 0 ELSE 1 END,
+    TrialTime DESC,
+    CASE
+      WHEN NULLIF(TRIM(CAST(ae_owner_name AS STRING)), '') IS NOT NULL THEN 0
+      WHEN NULLIF(TRIM(CAST(sfdc_owner_name AS STRING)), '') IS NOT NULL THEN 0
+      ELSE 1
+    END,
+    email
+) = 1
 ORDER BY TrialTime DESC, email
 ;

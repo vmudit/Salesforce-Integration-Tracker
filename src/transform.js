@@ -14,8 +14,8 @@
  * - Status        → Converted | Cancelled | Ongoing | Expired
  * - Usage limit   → usage_limit_applied when present
  *
- * Each extract row becomes one record (id = companyid + trial start + opportunity),
- * so repeat trials for the same account are never collapsed.
+ * Grain is one row per companyid. The funnel extract is contact/email-level, so
+ * the same company is collapsed here (and in SQL) to stop emails inflating counts.
  */
 const { coerceNumber, coerceString, unwrapBqValue } = require("./bigquery");
 
@@ -252,6 +252,39 @@ function buildSummary(records) {
   };
 }
 
+function betterRecord(a, b) {
+  if ((a.convertedToPaid === "Yes") !== (b.convertedToPaid === "Yes")) {
+    return a.convertedToPaid === "Yes" ? a : b;
+  }
+  const aStart = a.trialStartDate || "";
+  const bStart = b.trialStartDate || "";
+  if (aStart !== bStart) return aStart > bStart ? a : b;
+  if (Boolean(a.aeName) !== Boolean(b.aeName)) return a.aeName ? a : b;
+  if ((a.trialExtended === "Yes") !== (b.trialExtended === "Yes")) {
+    return a.trialExtended === "Yes" ? a : b;
+  }
+  const aMrr = Number(a.mrrGenerated) || 0;
+  const bMrr = Number(b.mrrGenerated) || 0;
+  if (aMrr !== bMrr) return aMrr > bMrr ? a : b;
+  return a;
+}
+
+function dedupeByCompanyId(records) {
+  const map = new Map();
+  let missing = 0;
+  for (const record of records) {
+    const key = String(record.accountUid || "").trim();
+    if (!key) {
+      missing += 1;
+      map.set(`missing-${missing}-${record.id}`, record);
+      continue;
+    }
+    const prev = map.get(key);
+    map.set(key, prev ? betterRecord(prev, record) : record);
+  }
+  return [...map.values()];
+}
+
 function filterOptions(records) {
   const aes = [...new Set(records.map((r) => r.aeName).filter(Boolean))].sort();
   const types = [...new Set(records.map((r) => r.trialType))].sort();
@@ -269,11 +302,11 @@ function buildPayload(rows, opts = {}) {
     return { payload: null, checks: { ok: false, errors: ["rows is not an array"], warnings } };
   }
 
-  const records = rows.map((r, i) => mapRow(r, i, todayStr));
+  const records = dedupeByCompanyId(rows.map((r, i) => mapRow(r, i, todayStr)));
 
-  const ids = new Set(records.map((r) => r.id));
-  if (ids.size !== records.length) {
-    warnings.push("Duplicate trial instance ids detected — check opportunity_id / TrialTime grain");
+  const companyIds = records.map((r) => String(r.accountUid || "").trim()).filter(Boolean);
+  if (new Set(companyIds).size !== companyIds.length) {
+    warnings.push("Duplicate company ids remain after email collapse");
   }
 
   const enterpriseMissingAe = records.filter(
@@ -302,7 +335,7 @@ function buildPayload(rows, opts = {}) {
       accountName: "Mapped from email until company name is added to the extract",
       companyName: "Email domain fallback until company name is in the extract",
       extendedDaysBeyond14: "current total trial days minus 14 (standard trial length)",
-      trialInstance: "One row per TrialTime + opportunity_id — repeat trials are separate records",
+      trialInstance: "One row per companyid — multiple emails on the same company are collapsed",
       aeName:
         "From extract: ae_owner_name → SFDC owner name (SDR/BDR/PS/AE) → property_sales_team_owner",
       trialExtended:
