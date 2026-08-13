@@ -248,6 +248,32 @@
       color: var(--muted-2);
       font-size: 0.85rem;
     }
+    .pager {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .pager button {
+      height: 2.1rem;
+      padding: 0 0.7rem;
+      font-size: 0.78rem;
+    }
+    .pager button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    #page-info {
+      min-width: 7.5rem;
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+    #f-page-size {
+      width: auto;
+      min-width: 7.5rem;
+      height: 2.1rem;
+    }
     .search {
       min-width: min(280px, 100%);
       background: var(--surface-2);
@@ -471,6 +497,16 @@
 
         <div class="toolbar">
           <span id="row-count"></span>
+          <div class="pager">
+            <button type="button" id="btn-prev">Prev</button>
+            <span id="page-info"></span>
+            <button type="button" id="btn-next">Next</button>
+            <select id="f-page-size" aria-label="Rows per page">
+              <option value="50">50 / page</option>
+              <option value="100" selected>100 / page</option>
+              <option value="250">250 / page</option>
+            </select>
+          </div>
           <input class="search" type="search" id="f-search" placeholder="Search account, UID, AE…" />
         </div>
 
@@ -565,6 +601,11 @@
     let sortDir = "desc";
     let mainTab = "summary";
     let detailTab = "account";
+    let page = 1;
+    let pageSize = 100;
+    let filteredCache = null;
+    let filterCacheKey = "";
+    let searchTimer = null;
 
     function activeColumns() {
       if (mainTab === "summary") return SUMMARY_COLUMNS;
@@ -740,7 +781,27 @@
       document.getElementById("lbl-start-to-text").textContent = cfg.toLabel;
     }
 
+    function currentFilterKey() {
+      return [
+        document.getElementById("f-date-level").value,
+        document.getElementById("f-start-from").value,
+        document.getElementById("f-start-to").value,
+        document.getElementById("f-type").value,
+        document.getElementById("f-status").value,
+        document.getElementById("f-extended").value,
+        document.getElementById("f-limit-type").value,
+        document.getElementById("f-converted").value,
+        document.getElementById("f-ae").value,
+        document.getElementById("f-search").value.trim().toLowerCase(),
+        sortKey,
+        sortDir,
+      ].join("|");
+    }
+
     function filteredRecords() {
+      const key = currentFilterKey();
+      if (filteredCache && filterCacheKey === key) return filteredCache;
+
       const level = document.getElementById("f-date-level").value || "day";
       const fromRaw = document.getElementById("f-start-from").value;
       const toRaw = document.getElementById("f-start-to").value;
@@ -754,8 +815,7 @@
       const ae = document.getElementById("f-ae").value;
       const q = document.getElementById("f-search").value.trim().toLowerCase();
 
-      let rows = DATA.records.slice();
-      rows = rows.filter((r) => {
+      const rows = DATA.records.filter((r) => {
         if (from && (!r.trialStartDate || r.trialStartDate < from)) return false;
         if (to && (!r.trialStartDate || r.trialStartDate > to)) return false;
         if (type && r.trialType !== type) return false;
@@ -785,6 +845,9 @@
         const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true });
         return sortDir === "asc" ? cmp : -cmp;
       });
+
+      filteredCache = rows;
+      filterCacheKey = key;
       return rows;
     }
 
@@ -812,22 +875,38 @@
       };
     }
 
+    function pageSlice(rows) {
+      const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+      if (page > totalPages) page = totalPages;
+      if (page < 1) page = 1;
+      const start = (page - 1) * pageSize;
+      return rows.slice(start, start + pageSize);
+    }
+
+    function bindSortOnce(theadId) {
+      const thead = document.getElementById(theadId);
+      if (thead.dataset.sortBound === "1") return;
+      thead.dataset.sortBound = "1";
+      thead.addEventListener("click", (event) => {
+        const th = event.target.closest("th[data-key]");
+        if (!th) return;
+        const key = th.getAttribute("data-key");
+        if (sortKey === key) sortDir = sortDir === "asc" ? "desc" : "asc";
+        else { sortKey = key; sortDir = "desc"; }
+        page = 1;
+        filteredCache = null;
+        renderTables({ kpis: false });
+      });
+    }
+
     function paintTable(theadId, tbodyId, columns, rows) {
       const thead = document.getElementById(theadId);
       const tbody = document.getElementById(tbodyId);
       thead.innerHTML = "<tr>" + columns.map((c) => {
         const mark = c.key === sortKey ? (sortDir === "asc" ? "▲" : "▼") : "";
-        return `<th data-key="${c.key}">${escapeHtml(c.label)}<span class="sort">${mark}</span></th>`;
+        return `<th data-key="${escapeHtml(c.key)}">${escapeHtml(c.label)}<span class="sort">${mark}</span></th>`;
       }).join("") + "</tr>";
-
-      thead.querySelectorAll("th").forEach((th) => {
-        th.addEventListener("click", () => {
-          const key = th.getAttribute("data-key");
-          if (sortKey === key) sortDir = sortDir === "asc" ? "desc" : "asc";
-          else { sortKey = key; sortDir = "desc"; }
-          renderTable();
-        });
-      });
+      bindSortOnce(theadId);
 
       if (!rows.length) {
         tbody.innerHTML = `<tr><td colspan="${columns.length}" class="muted">No trials match these filters.</td></tr>`;
@@ -849,17 +928,27 @@
       });
     }
 
-    function renderTable() {
-      const rows = filteredRecords();
-      renderKpis(summarize(rows));
+    function updatePager(total) {
+      const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1);
+      const start = total ? (page - 1) * pageSize + 1 : 0;
+      const end = Math.min(total, page * pageSize);
       document.getElementById("row-count").textContent =
-        `${rows.length} of ${DATA.records.length} trials`;
-      syncTabVisibility();
+        `${total} of ${DATA.records.length} trials`;
+      document.getElementById("page-info").textContent =
+        total ? `${start}–${end} · page ${page}/${totalPages}` : "0–0";
+      document.getElementById("btn-prev").disabled = page <= 1;
+      document.getElementById("btn-next").disabled = page >= totalPages;
+    }
 
-      if (mainTab === "summary") {
-        paintTable("thead-summary", "tbody-summary", SUMMARY_COLUMNS, rows);
-      } else {
-        paintTable("thead-detailed", "tbody-detailed", activeColumns(), rows);
+    function renderTables({ kpis = true, summary = true, detailed = true } = {}) {
+      const rows = filteredRecords();
+      if (kpis) renderKpis(summarize(rows));
+      const visible = pageSlice(rows);
+      updatePager(rows.length);
+      syncTabVisibility();
+      if (summary) paintTable("thead-summary", "tbody-summary", SUMMARY_COLUMNS, visible);
+      if (detailed) {
+        paintTable("thead-detailed", "tbody-detailed", activeColumns(), visible);
       }
     }
 
@@ -873,20 +962,29 @@
       document.getElementById("f-start-to").value = "";
     }
 
+    function onFilterChange() {
+      page = 1;
+      filteredCache = null;
+      renderTables();
+    }
+
     function wireFilters() {
       [
         "f-start-from", "f-start-to", "f-type", "f-status",
-        "f-extended", "f-limit-type", "f-converted", "f-ae", "f-search",
+        "f-extended", "f-limit-type", "f-converted", "f-ae",
       ].forEach((id) => {
-        document.getElementById(id).addEventListener("input", renderTable);
-        document.getElementById(id).addEventListener("change", renderTable);
+        document.getElementById(id).addEventListener("change", onFilterChange);
+      });
+      document.getElementById("f-search").addEventListener("input", () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(onFilterChange, 200);
       });
       document.getElementById("f-date-level").addEventListener("change", () => {
         syncDateLevelInputs();
         if (document.getElementById("f-date-level").value === "day") {
           document.getElementById("f-start-from").value = DEFAULT_START_FROM;
         }
-        renderTable();
+        onFilterChange();
       });
       document.getElementById("btn-reset").addEventListener("click", () => {
         applyDefaultDateFilter();
@@ -897,26 +995,48 @@
         document.getElementById("f-converted").value = "";
         document.getElementById("f-ae").value = "";
         document.getElementById("f-search").value = "";
-        renderTable();
+        onFilterChange();
       });
       document.getElementById("btn-refresh").addEventListener("click", () => boot(true));
+      document.getElementById("btn-prev").addEventListener("click", () => {
+        if (page <= 1) return;
+        page -= 1;
+        renderTables({ kpis: false });
+      });
+      document.getElementById("btn-next").addEventListener("click", () => {
+        page += 1;
+        renderTables({ kpis: false });
+      });
+      document.getElementById("f-page-size").addEventListener("change", (event) => {
+        pageSize = Number(event.target.value) || 100;
+        page = 1;
+        renderTables({ kpis: false });
+      });
 
       document.querySelectorAll("[data-main-tab]").forEach((btn) => {
         btn.addEventListener("click", () => {
-          mainTab = btn.getAttribute("data-main-tab");
-          if (mainTab === "summary") sortKey = "trialStartDate";
-          renderTable();
+          const next = btn.getAttribute("data-main-tab");
+          if (next === mainTab) return;
+          mainTab = next;
+          syncTabVisibility();
         });
       });
       document.querySelectorAll("[data-detail-tab]").forEach((btn) => {
         btn.addEventListener("click", () => {
-          detailTab = btn.getAttribute("data-detail-tab");
+          const next = btn.getAttribute("data-detail-tab");
+          if (next === detailTab) return;
+          detailTab = next;
           const cols = DETAIL_COLUMNS[detailTab] || [];
           if (cols.length && !cols.some((c) => c.key === sortKey)) {
             sortKey = cols[0].key;
             sortDir = "desc";
+            page = 1;
+            filteredCache = null;
+            renderTables({ kpis: false, summary: false });
+            return;
           }
-          renderTable();
+          syncTabVisibility();
+          renderTables({ kpis: false, summary: false });
         });
       });
     }
@@ -937,7 +1057,9 @@
       document.getElementById("filters-panel").hidden = false;
       document.getElementById("table-panel").hidden = false;
       applyDefaultDateFilter();
-      renderTable();
+      page = 1;
+      filteredCache = null;
+      renderTables();
     }
 
     async function boot(forceRefresh) {
@@ -945,14 +1067,6 @@
       status.className = "";
       status.textContent = forceRefresh ? "Refreshing…" : "Loading…";
       try {
-        const health = await fetch("/api/health");
-        const h = await health.json();
-        if (!h.demoMode && !h.bigqueryConfigured) {
-          status.className = "error";
-          status.textContent = "BigQuery is not configured. Set env vars or DEMO_MODE=1.";
-          return;
-        }
-
         const url = forceRefresh ? "/api/data?refresh=1" : "/api/data";
         const res = await fetch(url, { credentials: "same-origin" });
         if (!res.ok) {
