@@ -74,7 +74,9 @@
       grid-column: 3;
       justify-self: end;
       display: flex;
-      align-items: center;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.35rem;
     }
     @media (max-width: 700px) {
       .dashboard-header {
@@ -169,6 +171,12 @@
       padding: 0.75rem 1rem 0.55rem;
       border-bottom: 1px solid var(--line);
     }
+    #filters-panel .panel-h {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
     .panel-title {
       font-size: 0.95rem;
       font-weight: 600;
@@ -184,12 +192,12 @@
 
     .filters {
       display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 0.5rem 0.65rem;
       align-items: end;
     }
     @media (max-width: 900px) {
-      .filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     @media (max-width: 560px) {
       .filters { grid-template-columns: 1fr 1fr; }
@@ -308,18 +316,6 @@
       border-color: var(--accent);
       box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
     }
-    .filter-actions {
-      display: flex;
-      align-items: flex-end;
-      gap: 0.5rem;
-    }
-    .filter-actions button {
-      height: 2rem;
-      width: 100%;
-      font-size: 0.75rem;
-      padding: 0 0.65rem;
-      border-radius: 8px;
-    }
     button {
       font: inherit;
       font-size: 0.9rem;
@@ -346,6 +342,23 @@
       background: #4f46e5;
       border-color: #4f46e5;
       color: #fff;
+    }
+    .btn-quiet {
+      height: 1.85rem;
+      padding: 0 0.65rem;
+      font-size: 0.72rem;
+      font-weight: 500;
+      background: transparent;
+      border-color: #1e293b;
+      color: var(--muted);
+      border-radius: 8px;
+      opacity: 0.72;
+    }
+    .btn-quiet:hover {
+      opacity: 1;
+      background: rgba(255, 255, 255, 0.04);
+      border-color: var(--line-2);
+      color: var(--muted-2);
     }
 
     .toolbar {
@@ -528,7 +541,7 @@
     <header class="dashboard-header">
       <h1 class="dashboard-title">Trial Extension Dashboard</h1>
       <div class="header-actions">
-        <button type="button" id="btn-refresh" title="Force refresh from source">↻ Refresh</button>
+        <button type="button" class="btn-quiet" id="btn-refresh" title="Force refresh from source">Refresh</button>
       </div>
     </header>
 
@@ -537,6 +550,7 @@
     <section class="panel" id="filters-panel" hidden>
       <div class="panel-h">
         <div class="panel-title">Filters</div>
+        <button type="button" class="btn-quiet" id="btn-reset">Reset</button>
       </div>
       <div class="panel-b">
         <div class="filters">
@@ -575,16 +589,13 @@
           <label>Limit type
             <select id="f-limit-type">
               <option value="">All</option>
-              <option value="Default">Default (1194)</option>
-              <option value="Custom">Custom (100)</option>
+              <option value="Default">Default</option>
+              <option value="Custom">Custom</option>
             </select>
           </label>
           <label>AE name
             <select id="f-ae"><option value="">All</option></select>
           </label>
-          <div class="filter-actions">
-            <button type="button" id="btn-reset">Reset</button>
-          </div>
         </div>
       </div>
     </section>
