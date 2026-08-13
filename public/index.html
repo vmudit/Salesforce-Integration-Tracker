@@ -84,6 +84,8 @@
       color: var(--muted-2);
       font-size: 0.88rem;
     }
+    #status:empty,
+    #status[hidden] { display: none; }
     #status.error { color: var(--red); }
 
     .kpis {
@@ -142,7 +144,7 @@
       overflow: hidden;
     }
     .panel-h {
-      padding: 1rem 1.1rem 0.75rem;
+      padding: 0.75rem 1rem 0.55rem;
       border-bottom: 1px solid var(--line);
     }
     .panel-title {
@@ -156,18 +158,19 @@
       font-size: 0.75rem;
       margin: 0.15rem 0 0;
     }
-    .panel-b { padding: 1rem 1.1rem; }
+    .panel-b { padding: 0.75rem 1rem; }
 
     .filters {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 0.75rem 1rem;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 0.5rem 0.65rem;
+      align-items: end;
     }
-    @media (max-width: 960px) {
+    @media (max-width: 900px) {
+      .filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    }
+    @media (max-width: 560px) {
       .filters { grid-template-columns: 1fr 1fr; }
-    }
-    @media (max-width: 520px) {
-      .filters { grid-template-columns: 1fr; }
     }
     label {
       display: flex;
@@ -178,6 +181,25 @@
       color: var(--muted);
       text-transform: uppercase;
       letter-spacing: 0.06em;
+    }
+    .filters label {
+      min-width: 0;
+      gap: 0.22rem;
+      font-size: 0.62rem;
+    }
+    .filters input,
+    .filters select {
+      width: 100%;
+      min-width: 0;
+      font-size: 0.74rem;
+      padding: 0.22rem 0.45rem;
+      min-height: 2rem;
+      height: 2rem;
+      border-radius: 8px;
+    }
+    .filters input[type="date"] {
+      font-size: 0.7rem;
+      padding: 0.18rem 0.45rem;
     }
     input, select {
       font: inherit;
@@ -209,6 +231,13 @@
       display: flex;
       align-items: flex-end;
       gap: 0.5rem;
+    }
+    .filter-actions button {
+      height: 2rem;
+      width: 100%;
+      font-size: 0.75rem;
+      padding: 0 0.65rem;
+      border-radius: 8px;
     }
     button {
       font: inherit;
@@ -425,7 +454,6 @@
     <section class="panel" id="filters-panel" hidden>
       <div class="panel-h">
         <div class="panel-title">Filters</div>
-        <div class="panel-subtitle">Slice by date level (day / week / month / year), type, status, limits, AE, and conversion</div>
       </div>
       <div class="panel-b">
         <div class="filters">
@@ -1064,6 +1092,7 @@
 
     async function boot(forceRefresh) {
       const status = document.getElementById("status");
+      status.hidden = false;
       status.className = "";
       status.textContent = forceRefresh ? "Refreshing…" : "Loading…";
       try {
@@ -1074,12 +1103,11 @@
           throw new Error(body.error || `API ${res.status}`);
         }
         DATA = await res.json();
-        status.textContent =
-          `${DATA.rowCount ?? 0} trials loaded` +
-          (DATA.demoMode ? " · demo mode" : "") +
-          (res.headers.get("X-Data-Stale") === "1" ? " · stale cache" : "");
+        status.hidden = true;
+        status.textContent = "";
         renderShell();
       } catch (err) {
+        status.hidden = false;
         status.className = "error";
         status.textContent = String(err.message || err);
       }
