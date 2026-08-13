@@ -38,13 +38,18 @@
       font-family: var(--font);
       background: var(--bg);
       color: var(--fg);
-      min-height: 100vh;
+      height: 100%;
+      overflow: hidden;
     }
 
     .wrap {
       max-width: 1400px;
       margin: 0 auto;
-      padding: 0.75rem 1.25rem 3rem;
+      padding: 0.75rem 1.25rem 0;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
     }
 
     .dashboard-header {
@@ -53,6 +58,7 @@
       align-items: center;
       gap: 1rem;
       margin-bottom: 0.85rem;
+      flex-shrink: 0;
     }
     .dashboard-title {
       margin: 0;
@@ -83,10 +89,25 @@
       margin-bottom: 1rem;
       color: var(--muted-2);
       font-size: 0.88rem;
+      flex-shrink: 0;
     }
     #status:empty,
     #status[hidden] { display: none; }
     #status.error { color: var(--red); }
+
+    #filters-panel {
+      flex-shrink: 0;
+      z-index: 20;
+      margin-bottom: 0.75rem;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+    }
+
+    .scroll-body {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      padding-bottom: 2rem;
+    }
 
     .kpis {
       display: grid;
@@ -309,11 +330,13 @@
     }
 
     .table-wrap {
-      overflow: auto;
-      max-height: min(70vh, 720px);
+      overflow-x: auto;
       border: 1px solid var(--line);
       border-radius: 12px;
       background: var(--surface);
+    }
+    #table-panel {
+      overflow: visible;
     }
     table {
       width: 100%;
@@ -510,6 +533,7 @@
       </div>
     </section>
 
+    <div class="scroll-body">
     <section class="kpis" id="kpis" hidden></section>
 
     <section class="panel" id="table-panel" hidden>
@@ -568,6 +592,7 @@
         </details>
       </div>
     </section>
+    </div>
   </div>
 
   <script>
