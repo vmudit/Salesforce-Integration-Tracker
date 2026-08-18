@@ -111,6 +111,16 @@ function licenceMrrTable() {
   );
 }
 
+function trialExtensionTable() {
+  return datasetTable(
+    "BQ_TRIAL_EXT_DATASET",
+    "BQ_TRIAL_EXT_TABLE",
+    "jc_mastermind",
+    "trial_extension",
+    "trial_extension"
+  );
+}
+
 /** Kept for diagnostics.js compatibility (points at funnel). */
 function factTable() {
   const t = funnelTable();
@@ -132,6 +142,7 @@ function extractTableTokens() {
     UPGRADES: upgradeLogsTable().fqn,
     SFDC: sfdcUserRoleTable().fqn,
     LICENCE: licenceMrrTable().fqn,
+    TRIAL_EXT: trialExtensionTable().fqn,
   };
 }
 
@@ -152,6 +163,7 @@ function applyTableTokens(sql, tables) {
  * - Only rows with TrialTime IS NOT NULL
  * - cust_status from FUM as of current_date()-1
  * - is_contract from int_licence_final_mrr as of current_date()-1 (joined on companyid = userid)
+ * - latest_extension_at_date from jc_mastermind.trial_extension (latest extended_at per companyid)
  */
 function buildExtractSql() {
   let sql;
@@ -190,4 +202,5 @@ module.exports = {
   upgradeLogsTable,
   sfdcUserRoleTable,
   licenceMrrTable,
+  trialExtensionTable,
 };

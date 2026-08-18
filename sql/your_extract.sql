@@ -1,26 +1,28 @@
 -- Source of truth for the Trial Extension extract.
 -- src/queries.js reads this file at runtime:
---   • {{FUNNEL}} {{FUM}} {{UPGRADES}} {{SFDC}} {{LICENCE}} → validated FQNs
+--   • {{FUNNEL}} {{FUM}} {{UPGRADES}} {{SFDC}} {{LICENCE}} {{TRIAL_EXT}} → validated FQNs
 --   • @rangeStart / @previousPlanId / @changedToPlanId stay bound params (not literals)
 --
 -- Console paste: replace tokens with `project.dataset.table` and declare the @params
 -- (or inline 2026-01-01 / 1194 / 100).
 --
 -- Defaults (override via BQ_*_DATASET / BQ_*_TABLE env):
---   {{FUNNEL}}   hubspot_migration.reporting_user_funnel_new_hs
---   {{FUM}}      analytics_reporting.fact_user_master
---   {{UPGRADES}} justcall.upgradeDowngradeLogs
---   {{SFDC}}     analytics_seed.hubspot_sfdc_user_role_hs
---   {{LICENCE}}  analytics_intermediate.int_licence_final_mrr
+--   {{FUNNEL}}    hubspot_migration.reporting_user_funnel_new_hs
+--   {{FUM}}       analytics_reporting.fact_user_master
+--   {{UPGRADES}}  justcall.upgradeDowngradeLogs
+--   {{SFDC}}      analytics_seed.hubspot_sfdc_user_role_hs
+--   {{LICENCE}}   analytics_intermediate.int_licence_final_mrr
+--   {{TRIAL_EXT}} jc_mastermind.trial_extension
 --
 -- Source query (stakeholder):
 --   funnel + FUM (cust status as of current_date()-1)
 --   + upgradeDowngradeLogs (1194 → 100 = Custom enterprise limit)
 --   + sfdc_user_role_hs (SDR/BDR/PS/AE) on owner_id
 --   + int_licence_final_mrr (is_contract as of current_date()-1, companyid = userid)
+--   + trial_extension (latest extended_at per companyid)
 --
--- AE name precedence in the app:
---   ae_owner_name → smp1.name → property_sales_team_owner
+-- AE name precedence:
+--   ae_owner_name → smp1.name → property_sales_team_owner → 'Self Serve'
 
 WITH cust_status AS (
   SELECT DISTINCT
@@ -58,6 +60,15 @@ contract_flag AS (
     AND mrr_date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
 ),
 
+extended_at_date AS (
+  SELECT
+    companyid,
+    extended_by,
+    DATE(extended_at) AS latest_extension_at_date
+  FROM {{TRIAL_EXT}}
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY companyid ORDER BY extended_at DESC) = 1
+),
+
 base AS (
   SELECT DISTINCT
     a.email,
@@ -84,7 +95,8 @@ base AS (
     cs.closed_by_motion,
     pu.limit_overriden_flag,
     pu.overriden_date,
-    COALESCE(cf.is_contract, false) AS is_contract
+    COALESCE(cf.is_contract, false) AS is_contract,
+    ext.latest_extension_at_date
   FROM {{FUNNEL}} a
   LEFT JOIN (
     SELECT *
@@ -98,23 +110,36 @@ base AS (
     ON a.companyid = pu.companyid
   LEFT JOIN contract_flag cf
     ON CAST(a.companyid AS STRING) = CAST(cf.userid AS STRING)
+  LEFT JOIN extended_at_date ext
+    ON CAST(a.companyid AS STRING) = CAST(ext.companyid AS STRING)
   WHERE a.TrialTime IS NOT NULL
     AND DATE(a.TrialTime) >= @rangeStart
 )
 
-SELECT *
-FROM base
-QUALIFY ROW_NUMBER() OVER (
-  PARTITION BY COALESCE(CAST(companyid AS STRING), CONCAT('email:', CAST(email AS STRING)))
-  ORDER BY
-    CASE WHEN CustomerTime IS NOT NULL THEN 0 ELSE 1 END,
-    TrialTime DESC,
-    CASE
-      WHEN NULLIF(TRIM(CAST(ae_owner_name AS STRING)), '') IS NOT NULL THEN 0
-      WHEN NULLIF(TRIM(CAST(sfdc_owner_name AS STRING)), '') IS NOT NULL THEN 0
-      ELSE 1
-    END,
-    email
-) = 1
+SELECT
+  * EXCEPT (ae_owner_name),
+  COALESCE(
+    NULLIF(TRIM(CAST(ae_owner_name AS STRING)), ''),
+    NULLIF(TRIM(CAST(sfdc_owner_name AS STRING)), ''),
+    NULLIF(TRIM(CAST(property_sales_team_owner AS STRING)), ''),
+    'Self Serve'
+  ) AS ae_owner_name
+FROM (
+  SELECT *
+  FROM base
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY COALESCE(CAST(companyid AS STRING), CONCAT('email:', CAST(email AS STRING)))
+    ORDER BY
+      CASE WHEN CustomerTime IS NOT NULL THEN 0 ELSE 1 END,
+      TrialTime DESC,
+      CASE
+        WHEN NULLIF(TRIM(CAST(ae_owner_name AS STRING)), '') IS NOT NULL THEN 0
+        WHEN NULLIF(TRIM(CAST(sfdc_owner_name AS STRING)), '') IS NOT NULL THEN 0
+        WHEN NULLIF(TRIM(CAST(property_sales_team_owner AS STRING)), '') IS NOT NULL THEN 0
+        ELSE 1
+      END,
+      email
+  ) = 1
+)
 ORDER BY TrialTime DESC, email
 ;
