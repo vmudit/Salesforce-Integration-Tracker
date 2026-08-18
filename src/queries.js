@@ -1,10 +1,15 @@
 /**
- * Trial Extension extract — multi-table BigQuery SQL.
+ * Trial Extension extract — loads sql/your_extract.sql and fills table tokens.
  *
  * Table identifiers are validated before interpolation (BQ cannot bind them).
  * Filter values are bound as @params.
  */
+const fs = require("fs");
+const path = require("path");
 const { getProjectId } = require("./bigquery");
+
+const EXTRACT_SQL_PATH = path.join(__dirname, "..", "sql", "your_extract.sql");
+const TABLE_TOKEN_RE = /\{\{([A-Z_]+)\}\}/g;
 
 const DEFAULT_RANGE_START = "2026-01-01";
 
@@ -96,6 +101,16 @@ function sfdcUserRoleTable() {
   );
 }
 
+function licenceMrrTable() {
+  return datasetTable(
+    "BQ_LICENCE_DATASET",
+    "BQ_LICENCE_TABLE",
+    "analytics_intermediate",
+    "int_licence_final_mrr",
+    "licence_mrr"
+  );
+}
+
 /** Kept for diagnostics.js compatibility (points at funnel). */
 function factTable() {
   const t = funnelTable();
@@ -110,105 +125,46 @@ function extractParams() {
   };
 }
 
+function extractTableTokens() {
+  return {
+    FUNNEL: funnelTable().fqn,
+    FUM: factUserMasterTable().fqn,
+    UPGRADES: upgradeLogsTable().fqn,
+    SFDC: sfdcUserRoleTable().fqn,
+    LICENCE: licenceMrrTable().fqn,
+  };
+}
+
+function applyTableTokens(sql, tables) {
+  return sql.replace(TABLE_TOKEN_RE, (_match, name) => {
+    if (!Object.prototype.hasOwnProperty.call(tables, name)) {
+      throw new Error(`Unknown SQL table token {{${name}}} in ${EXTRACT_SQL_PATH}`);
+    }
+    return tables[name];
+  });
+}
+
 /**
- * Trial base extract.
+ * Trial base extract — query text lives in sql/your_extract.sql (single source).
  * Assumptions baked into SQL (confirm with stakeholders):
  * - Limit override / Custom = first upgrade from previousPlanId (1194) → changedToPlanId (100)
  * - Default limit type is derived in transform for Enterprise trials without that upgrade
  * - Only rows with TrialTime IS NOT NULL
  * - cust_status from FUM as of current_date()-1
+ * - is_contract from int_licence_final_mrr as of current_date()-1 (joined on companyid = userid)
  */
 function buildExtractSql() {
-  const funnel = funnelTable().fqn;
-  const fum = factUserMasterTable().fqn;
-  const upgrades = upgradeLogsTable().fqn;
-  const sfdc = sfdcUserRoleTable().fqn;
+  let sql;
+  try {
+    sql = fs.readFileSync(EXTRACT_SQL_PATH, "utf8");
+  } catch (err) {
+    const wrapped = new Error(`Failed to read extract SQL at ${EXTRACT_SQL_PATH}`);
+    wrapped.cause = err;
+    throw wrapped;
+  }
 
-  return `
-WITH cust_status AS (
-  SELECT DISTINCT
-    company_id,
-    stripe_subscription_status,
-    land_mrr,
-    closed_by_motion
-  FROM ${fum}
-  WHERE date_level = 'Day'
-    AND date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
-    AND stripe_subscription_status IS NOT NULL
-),
-
-plan_upgrade_flag AS (
-  SELECT
-    companyid,
-    previousPlan,
-    changedToPlan,
-    previousPlanId,
-    changedToPlanId,
-    DATE(insertedAt) AS overriden_date,
-    1 AS limit_overriden_flag
-  FROM ${upgrades}
-  WHERE previousPlanId = @previousPlanId
-    AND changedToPlanId = @changedToPlanId
-  QUALIFY ROW_NUMBER() OVER (PARTITION BY companyid ORDER BY insertedAt) = 1
-),
-
-base AS (
-  SELECT DISTINCT
-    a.email,
-    a.companyid,
-    a.opportunity_id,
-    a.TrialTime,
-    a.TrialEndTime,
-    a.property_returning_trial_user_flag,
-    a.property_trial_reactivation,
-    a.property_c_plan_type,
-    a.subscription_plan,
-    a.property_sales_team_owner,
-    a.owner_id,
-    smp1.name AS sfdc_owner_name,
-    a.ae_owner_name,
-    a.opp_created_owner_profile,
-    a.opp_created_owner_profile_new,
-    DATE_DIFF(DATE(a.TrialEndTime), DATE(a.TrialTime), DAY) AS trial_days_given,
-    DATE_DIFF(DATE(a.CustomerTime), DATE(a.TrialTime), DAY) AS trial_to_cust_days,
-    a.CustomerTime,
-    COALESCE(a.land_mrr, cs.land_mrr) AS land_mrr,
-    a.subscription_mrr,
-    cs.stripe_subscription_status AS subscription_status,
-    cs.closed_by_motion,
-    pu.limit_overriden_flag,
-    pu.overriden_date
-  FROM ${funnel} a
-  LEFT JOIN (
-    SELECT *
-    FROM ${sfdc}
-    WHERE profile_name_c IN ('SDR', 'BDR', 'PS', 'AE')
-  ) smp1
-    ON CAST(smp1.id AS STRING) = CAST(a.owner_id AS STRING)
-  LEFT JOIN cust_status cs
-    ON a.companyid = cs.company_id
-  LEFT JOIN plan_upgrade_flag pu
-    ON a.companyid = pu.companyid
-  WHERE a.TrialTime IS NOT NULL
-    AND DATE(a.TrialTime) >= @rangeStart
-)
-
-SELECT *
-FROM base
-QUALIFY ROW_NUMBER() OVER (
-  PARTITION BY COALESCE(CAST(companyid AS STRING), CONCAT('email:', CAST(email AS STRING)))
-  ORDER BY
-    CASE WHEN CustomerTime IS NOT NULL THEN 0 ELSE 1 END,
-    TrialTime DESC,
-    CASE
-      WHEN NULLIF(TRIM(CAST(ae_owner_name AS STRING)), '') IS NOT NULL THEN 0
-      WHEN NULLIF(TRIM(CAST(sfdc_owner_name AS STRING)), '') IS NOT NULL THEN 0
-      ELSE 1
-    END,
-    email
-) = 1
-ORDER BY TrialTime DESC, email
-`;
+  sql = applyTableTokens(sql, extractTableTokens()).replace(/;\s*$/, "").trim();
+  return sql;
 }
 
 function buildProbeSql() {
@@ -233,4 +189,5 @@ module.exports = {
   factUserMasterTable,
   upgradeLogsTable,
   sfdcUserRoleTable,
+  licenceMrrTable,
 };
