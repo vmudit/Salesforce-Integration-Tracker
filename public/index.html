@@ -192,19 +192,28 @@
     .panel-b { padding: 0.75rem 1rem; }
 
     .filters {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .filters-row {
       display: grid;
-      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 0.5rem 0.65rem;
       align-items: end;
     }
+    .filters-row-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+    .filters-row-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     @media (max-width: 1100px) {
-      .filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+      .filters-row-5,
+      .filters-row-4 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
     @media (max-width: 900px) {
-      .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .filters-row-5,
+      .filters-row-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
     @media (max-width: 560px) {
-      .filters { grid-template-columns: 1fr 1fr; }
+      .filters-row-5,
+      .filters-row-4 { grid-template-columns: 1fr 1fr; }
     }
     label {
       display: flex;
@@ -558,6 +567,7 @@
       </div>
       <div class="panel-b">
         <div class="filters">
+          <div class="filters-row filters-row-5">
           <label>Date level
             <select id="f-date-level">
               <option value="day">Day</option>
@@ -580,6 +590,8 @@
           <label>AE name
             <select id="f-ae"><option value="">All</option></select>
           </label>
+          </div>
+          <div class="filters-row filters-row-4">
           <label>Trial status
             <div class="ms" id="f-status">
               <button type="button" class="ms-toggle" id="f-status-toggle">All</button>
@@ -607,6 +619,7 @@
               <option value="No">No</option>
             </select>
           </label>
+          </div>
         </div>
       </div>
     </section>
