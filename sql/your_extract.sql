@@ -1,11 +1,23 @@
--- Analyst reference copy of the Trial Extension extract.
--- Runtime SQL lives in src/queries.js → buildExtractSql().
+-- Source of truth for the Trial Extension extract.
+-- src/queries.js reads this file at runtime:
+--   • {{FUNNEL}} {{FUM}} {{UPGRADES}} {{SFDC}} {{LICENCE}} → validated FQNs
+--   • @rangeStart / @previousPlanId / @changedToPlanId stay bound params (not literals)
+--
+-- Console paste: replace tokens with `project.dataset.table` and declare the @params
+-- (or inline 2026-01-01 / 1194 / 100).
+--
+-- Defaults (override via BQ_*_DATASET / BQ_*_TABLE env):
+--   {{FUNNEL}}   hubspot_migration.reporting_user_funnel_new_hs
+--   {{FUM}}      analytics_reporting.fact_user_master
+--   {{UPGRADES}} justcall.upgradeDowngradeLogs
+--   {{SFDC}}     analytics_seed.hubspot_sfdc_user_role_hs
+--   {{LICENCE}}  analytics_intermediate.int_licence_final_mrr
 --
 -- Source query (stakeholder):
---   hubspot_migration.reporting_user_funnel_new_hs
---   + fact_user_master (cust status as of current_date()-1)
---   + upgradeDowngradeLogs (1194 → 100 = Custom enterprise limit; Default = Enterprise without this upgrade)
+--   funnel + FUM (cust status as of current_date()-1)
+--   + upgradeDowngradeLogs (1194 → 100 = Custom enterprise limit)
 --   + sfdc_user_role_hs (SDR/BDR/PS/AE) on owner_id
+--   + int_licence_final_mrr (is_contract as of current_date()-1, companyid = userid)
 --
 -- AE name precedence in the app:
 --   ae_owner_name → smp1.name → property_sales_team_owner
@@ -16,7 +28,7 @@ WITH cust_status AS (
     stripe_subscription_status,
     land_mrr,
     closed_by_motion
-  FROM `PROJECT.analytics_reporting.fact_user_master`
+  FROM {{FUM}}
   WHERE date_level = 'Day'
     AND date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
     AND stripe_subscription_status IS NOT NULL
@@ -31,10 +43,19 @@ plan_upgrade_flag AS (
     changedToPlanId,
     DATE(insertedAt) AS overriden_date,
     1 AS limit_overriden_flag
-  FROM `PROJECT.justcall.upgradeDowngradeLogs`
-  WHERE previousPlanId = 1194
-    AND changedToPlanId = 100
+  FROM {{UPGRADES}}
+  WHERE previousPlanId = @previousPlanId
+    AND changedToPlanId = @changedToPlanId
   QUALIFY ROW_NUMBER() OVER (PARTITION BY companyid ORDER BY insertedAt) = 1
+),
+
+contract_flag AS (
+  SELECT DISTINCT
+    userid,
+    is_contract
+  FROM {{LICENCE}}
+  WHERE date_level = 'Day'
+    AND mrr_date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
 ),
 
 base AS (
@@ -62,11 +83,12 @@ base AS (
     cs.stripe_subscription_status AS subscription_status,
     cs.closed_by_motion,
     pu.limit_overriden_flag,
-    pu.overriden_date
-  FROM `PROJECT.hubspot_migration.reporting_user_funnel_new_hs` a
+    pu.overriden_date,
+    COALESCE(cf.is_contract, false) AS is_contract
+  FROM {{FUNNEL}} a
   LEFT JOIN (
     SELECT *
-    FROM `PROJECT.analytics_seed.hubspot_sfdc_user_role_hs`
+    FROM {{SFDC}}
     WHERE profile_name_c IN ('SDR', 'BDR', 'PS', 'AE')
   ) smp1
     ON CAST(smp1.id AS STRING) = CAST(a.owner_id AS STRING)
@@ -74,8 +96,10 @@ base AS (
     ON a.companyid = cs.company_id
   LEFT JOIN plan_upgrade_flag pu
     ON a.companyid = pu.companyid
+  LEFT JOIN contract_flag cf
+    ON CAST(a.companyid AS STRING) = CAST(cf.userid AS STRING)
   WHERE a.TrialTime IS NOT NULL
-    AND DATE(a.TrialTime) >= '2026-01-01'
+    AND DATE(a.TrialTime) >= @rangeStart
 )
 
 SELECT *
