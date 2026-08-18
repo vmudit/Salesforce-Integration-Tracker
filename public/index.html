@@ -193,9 +193,12 @@
 
     .filters {
       display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
+      grid-template-columns: repeat(5, minmax(0, 1fr));
       gap: 0.5rem 0.65rem;
       align-items: end;
+    }
+    @media (max-width: 1100px) {
+      .filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
     }
     @media (max-width: 900px) {
       .filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -574,6 +577,9 @@
           <label>Trial type
             <select id="f-type"><option value="">All</option></select>
           </label>
+          <label>AE name
+            <select id="f-ae"><option value="">All</option></select>
+          </label>
           <label>Trial status
             <div class="ms" id="f-status">
               <button type="button" class="ms-toggle" id="f-status-toggle">All</button>
@@ -594,8 +600,12 @@
               <option value="Custom">Custom</option>
             </select>
           </label>
-          <label>AE name
-            <select id="f-ae"><option value="">All</option></select>
+          <label>Contract customer
+            <select id="f-contract">
+              <option value="">All</option>
+              <option value="Yes">Yes</option>
+              <option value="No">No</option>
+            </select>
           </label>
         </div>
       </div>
@@ -673,11 +683,13 @@
       { key: "currentTrialEndDate", label: "Trial end date" },
       { key: "currentTotalTrialDurationDays", label: "Total trial days", render: "num" },
       { key: "extendedDaysBeyond14", label: "Extended days", render: "num" },
+      { key: "extensionDate", label: "Extended on date" },
       { key: "currentTrialStatus", label: "Status", render: "status" },
       { key: "closedWonDate", label: "Customer time" },
       { key: "daysTrialToClosedWon", label: "Trial to customer days", render: "num" },
       { key: "mrrGenerated", label: "MRR", render: "money" },
       { key: "aeName", label: "AE name" },
+      { key: "contractCustomer", label: "Contract customer", render: "yn" },
     ];
 
     const DETAIL_COLUMNS = {
@@ -687,6 +699,7 @@
         { key: "trialType", label: "Trial type", render: "type" },
         { key: "trialSegment", label: "Trial segment" },
         { key: "aeName", label: "AE name" },
+        { key: "contractCustomer", label: "Contract customer", render: "yn" },
       ],
       duration: [
         { key: "accountUid", label: "Account UID" },
@@ -694,7 +707,7 @@
         { key: "originalTrialEndDate", label: "Original trial end date" },
         { key: "originalTrialDurationDays", label: "Original trial duration (days)", render: "num" },
         { key: "trialExtended", label: "Trial extended", render: "yn" },
-        { key: "extensionDate", label: "Extension date" },
+        { key: "extensionDate", label: "Extended on date" },
         { key: "extendedTrialEndDate", label: "Extended trial end date" },
         { key: "additionalDaysProvided", label: "Additional days provided", render: "num" },
         { key: "currentTotalTrialDurationDays", label: "Current total trial duration", render: "num" },
@@ -950,6 +963,7 @@
         document.getElementById("f-extended").value,
         document.getElementById("f-limit-type").value,
         document.getElementById("f-ae").value,
+        document.getElementById("f-contract").value,
         document.getElementById("f-search").value.trim().toLowerCase(),
         sortKey,
         sortDir,
@@ -970,6 +984,7 @@
       const extended = document.getElementById("f-extended").value;
       const limitType = document.getElementById("f-limit-type").value;
       const ae = document.getElementById("f-ae").value;
+      const contract = document.getElementById("f-contract").value;
       const q = document.getElementById("f-search").value.trim().toLowerCase();
 
       const rows = DATA.records.filter((r) => {
@@ -980,8 +995,9 @@
         if (extended && r.trialExtended !== extended) return false;
         if (limitType && r.limitType !== limitType) return false;
         if (ae && r.aeName !== ae) return false;
+        if (contract && r.contractCustomer !== contract) return false;
         if (q) {
-          const hay = [r.accountName, r.companyName, r.accountUid, r.aeName, r.email, r.opportunityId]
+          const hay = [r.accountName, r.companyName, r.accountUid, r.aeName, r.email, r.opportunityId, r.contractCustomer]
             .join(" ")
             .toLowerCase();
           if (!hay.includes(q)) return false;
@@ -1127,7 +1143,7 @@
     function wireFilters() {
       [
         "f-start-from", "f-start-to", "f-type",
-        "f-extended", "f-limit-type", "f-ae",
+        "f-extended", "f-limit-type", "f-ae", "f-contract",
       ].forEach((id) => {
         document.getElementById(id).addEventListener("change", onFilterChange);
       });
@@ -1160,6 +1176,7 @@
         document.getElementById("f-extended").value = "";
         document.getElementById("f-limit-type").value = "";
         document.getElementById("f-ae").value = "";
+        document.getElementById("f-contract").value = "";
         document.getElementById("f-search").value = "";
         onFilterChange();
       });

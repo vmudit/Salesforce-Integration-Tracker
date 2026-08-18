@@ -108,9 +108,8 @@ function mapRow(row, index, todayStr) {
 
   const extendedEnd = toDateStr(row.ExtendedTrialEndTime);
   const extensionDate =
-    toDateStr(row.extension_date) ||
     toDateStr(row.latest_extension_at_date) ||
-    (extendedEnd ? overrideDate : null) ||
+    toDateStr(row.extension_date) ||
     null;
   let additionalDays =
     row.additional_days_provided != null && row.additional_days_provided !== ""
@@ -196,11 +195,12 @@ function mapRow(row, index, todayStr) {
     planSelected,
     trialSegment: trialSegment(row),
     aeName: ae,
+    contractCustomer: truthyFlag(row.is_contract) ? "Yes" : "No",
     trialStartDate: trialStart,
     originalTrialEndDate: originalEnd,
     originalTrialDurationDays: originalDuration,
     trialExtended: trialExtended ? "Yes" : "No",
-    extensionDate: trialExtended ? extensionDate : null,
+    extensionDate,
     extendedTrialEndDate: extendedEnd,
     additionalDaysProvided: trialExtended ? additionalDays : null,
     currentTotalTrialDurationDays: currentDuration,
@@ -337,7 +337,9 @@ function buildPayload(rows, opts = {}) {
       extendedDaysBeyond14: "current total trial days minus 14 (standard trial length)",
       trialInstance: "One row per companyid — multiple emails on the same company are collapsed",
       aeName:
-        "From extract: ae_owner_name → SFDC owner name (SDR/BDR/PS/AE) → property_sales_team_owner",
+        "From extract: ae_owner_name → SFDC owner name (SDR/BDR/PS/AE) → property_sales_team_owner → Self Serve",
+      extensionDate: "Latest DATE(extended_at) from jc_mastermind.trial_extension per companyid",
+      contractCustomer: "Yes/No from is_contract on int_licence_final_mrr (false when unmatched)",
       trialExtended:
         "Yes when current trial duration is greater than 14 days, for any trial type",
       limitOverridden: "Custom = upgradeDowngradeLogs 1194→100 (enterprise FUP made custom)",
