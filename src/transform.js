@@ -64,7 +64,7 @@ function aeName(row) {
     if (/^\d+$/.test(name)) continue;
     return name;
   }
-  return "";
+  return "Self Serve";
 }
 
 function isCancelledStatus(status) {
@@ -108,7 +108,10 @@ function mapRow(row, index, todayStr) {
 
   const extendedEnd = toDateStr(row.ExtendedTrialEndTime);
   const extensionDate =
-    toDateStr(row.extension_date) || (extendedEnd ? overrideDate : null) || null;
+    toDateStr(row.extension_date) ||
+    toDateStr(row.latest_extension_at_date) ||
+    (extendedEnd ? overrideDate : null) ||
+    null;
   let additionalDays =
     row.additional_days_provided != null && row.additional_days_provided !== ""
       ? coerceNumber(row.additional_days_provided)
