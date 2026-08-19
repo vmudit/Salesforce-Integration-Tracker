@@ -160,6 +160,14 @@
       margin-top: 0.25rem;
     }
 
+    .limit-type-note {
+      color: var(--yellow);
+      font-size: 0.84rem;
+      font-weight: 500;
+      line-height: 1.45;
+      margin: -0.35rem 0 1.15rem;
+    }
+
     .panel {
       background: var(--surface);
       border: 1px solid var(--line);
@@ -626,6 +634,9 @@
 
     <div class="scroll-body">
     <section class="kpis" id="kpis" hidden></section>
+    <p class="limit-type-note" id="limit-type-note" hidden>
+      Note: Enterprise trial Limit Type (Default vs Custom / Unlimited) is available from 5 August 2026. Use this filter for trials from that date onward.
+    </p>
 
     <section class="panel" id="table-panel" hidden>
       <div class="panel-h">
@@ -872,6 +883,8 @@
       ];
       const root = document.getElementById("kpis");
       root.hidden = false;
+      const note = document.getElementById("limit-type-note");
+      if (note) note.hidden = false;
       root.innerHTML = items.map((i) => `
         <div class="kpi-card">
           <div class="kpi-label">${escapeHtml(i.label)}</div>
