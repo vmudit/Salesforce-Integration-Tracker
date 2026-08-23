@@ -212,6 +212,7 @@ function mapRow(row, index, todayStr) {
     limitType,
     limitOverridden: limitOverridden ? "Yes" : "No",
     limitOverrideDate: overrideDate,
+    planUpdatedByName: coerceString(row.overriden_by_name).trim() || "",
     convertedToPaid: converted ? "Yes" : "No",
     closedWonDate: closedWon,
     mrrGenerated: converted ? mrr : 0,
@@ -341,6 +342,7 @@ function buildPayload(rows, opts = {}) {
         "From extract: ae_owner_name → SFDC owner name (SDR/BDR/PS/AE) → property_sales_team_owner → Self Serve",
       extensionDate: "Latest DATE(extended_at) from jc_mastermind.trial_extension per companyid",
       extendedByName: "adminpanel.name joined on trial_extension.extended_by",
+      planUpdatedByName: "adminpanel.name joined on upgradeDowngradeLogs.mmadminid (1194→100)",
       contractCustomer: "Yes/No from is_contract on int_licence_final_mrr (false when unmatched)",
       trialExtended:
         "Yes when current trial duration is greater than 14 days, for any trial type",

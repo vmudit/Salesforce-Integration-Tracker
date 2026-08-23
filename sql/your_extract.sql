@@ -17,7 +17,7 @@
 --
 -- Source query (stakeholder):
 --   funnel + FUM (cust status as of current_date()-1)
---   + upgradeDowngradeLogs (1194 → 100 = Custom enterprise limit)
+--   + upgradeDowngradeLogs (1194 → 100 = Custom enterprise limit) + adminpanel.overriden_by_name
 --   + sfdc_user_role_hs (SDR/BDR/PS/AE) on owner_id
 --   + int_licence_final_mrr (is_contract as of current_date()-1, companyid = userid)
 --   + trial_extension (latest extended_at per companyid) + adminpanel.extended_by_name
@@ -39,17 +39,23 @@ WITH cust_status AS (
 
 plan_upgrade_flag AS (
   SELECT
-    companyid,
-    previousPlan,
-    changedToPlan,
-    previousPlanId,
-    changedToPlanId,
-    DATE(insertedAt) AS overriden_date,
-    1 AS limit_overriden_flag
-  FROM {{UPGRADES}}
-  WHERE previousPlanId = @previousPlanId
-    AND changedToPlanId = @changedToPlanId
-  QUALIFY ROW_NUMBER() OVER (PARTITION BY companyid ORDER BY insertedAt) = 1
+    ud.companyid,
+    ud.previousPlan,
+    ud.changedToPlan,
+    ud.previousPlanId,
+    ud.changedToPlanId,
+    DATE(ud.insertedAt) AS overriden_date,
+    1 AS limit_overriden_flag,
+    a.name AS overriden_by_name
+  FROM {{UPGRADES}} ud
+  LEFT JOIN (
+    SELECT DISTINCT id, name
+    FROM {{ADMINPANEL}}
+  ) a
+    ON CAST(ud.mmadminid AS STRING) = CAST(a.id AS STRING)
+  WHERE ud.previousPlanId = @previousPlanId
+    AND ud.changedToPlanId = @changedToPlanId
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY ud.companyid ORDER BY ud.insertedAt) = 1
 ),
 
 contract_flag AS (
@@ -102,6 +108,7 @@ base AS (
     cs.closed_by_motion,
     pu.limit_overriden_flag,
     pu.overriden_date,
+    pu.overriden_by_name,
     COALESCE(cf.is_contract, false) AS is_contract,
     ext.latest_extension_at_date,
     ext.extended_by_name

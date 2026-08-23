@@ -703,6 +703,7 @@
       { key: "companyName", label: "Company name" },
       { key: "email", label: "Email" },
       { key: "planSelected", label: "Plan selected", render: "type" },
+      { key: "planUpdatedByName", label: "Plan Updated by name" },
       { key: "trialStartDate", label: "Trial start date" },
       { key: "currentTrialEndDate", label: "Trial end date" },
       { key: "currentTotalTrialDurationDays", label: "Total trial days", render: "num" },
@@ -745,6 +746,7 @@
         { key: "limitType", label: "Limit type" },
         { key: "limitOverridden", label: "Limit overridden", render: "yn" },
         { key: "limitOverrideDate", label: "Date of limit override" },
+        { key: "planUpdatedByName", label: "Plan Updated by name" },
       ],
       conversion: [
         { key: "accountUid", label: "Account UID" },
@@ -1025,7 +1027,7 @@
         if (ae && r.aeName !== ae) return false;
         if (contract && r.contractCustomer !== contract) return false;
         if (q) {
-          const hay = [r.accountName, r.companyName, r.accountUid, r.aeName, r.email, r.opportunityId, r.contractCustomer, r.extendedByName]
+          const hay = [r.accountName, r.companyName, r.accountUid, r.aeName, r.email, r.opportunityId, r.contractCustomer, r.extendedByName, r.planUpdatedByName]
             .join(" ")
             .toLowerCase();
           if (!hay.includes(q)) return false;

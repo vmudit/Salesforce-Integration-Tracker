@@ -375,6 +375,7 @@ function buildDemoRows() {
       closed_by_motion: s.converted ? "AE-led" : null,
       limit_overriden_flag: s.override ? 1 : null,
       overriden_date: overrideDate ? { value: iso(overrideDate) } : null,
+      overriden_by_name: s.override ? (s.ae || "Ops Admin") : null,
       is_contract: Number(s.companyid) % 2 === 0,
       latest_extension_at_date: extensionDate ? { value: iso(extensionDate) } : null,
       extended_by_name: s.extended ? (s.ae || "Ops Admin") : null,
