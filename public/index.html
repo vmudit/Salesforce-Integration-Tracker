@@ -708,6 +708,7 @@
       { key: "currentTotalTrialDurationDays", label: "Total trial days", render: "num" },
       { key: "extendedDaysBeyond14", label: "Extended days", render: "num" },
       { key: "extensionDate", label: "Extended on date" },
+      { key: "extendedByName", label: "Extended by name" },
       { key: "currentTrialStatus", label: "Status", render: "status" },
       { key: "closedWonDate", label: "Customer time" },
       { key: "daysTrialToClosedWon", label: "Trial to customer days", render: "num" },
@@ -732,6 +733,7 @@
         { key: "originalTrialDurationDays", label: "Original trial duration (days)", render: "num" },
         { key: "trialExtended", label: "Trial extended", render: "yn" },
         { key: "extensionDate", label: "Extended on date" },
+        { key: "extendedByName", label: "Extended by name" },
         { key: "extendedTrialEndDate", label: "Extended trial end date" },
         { key: "additionalDaysProvided", label: "Additional days provided", render: "num" },
         { key: "currentTotalTrialDurationDays", label: "Current total trial duration", render: "num" },
@@ -1023,7 +1025,7 @@
         if (ae && r.aeName !== ae) return false;
         if (contract && r.contractCustomer !== contract) return false;
         if (q) {
-          const hay = [r.accountName, r.companyName, r.accountUid, r.aeName, r.email, r.opportunityId, r.contractCustomer]
+          const hay = [r.accountName, r.companyName, r.accountUid, r.aeName, r.email, r.opportunityId, r.contractCustomer, r.extendedByName]
             .join(" ")
             .toLowerCase();
           if (!hay.includes(q)) return false;

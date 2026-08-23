@@ -201,6 +201,7 @@ function mapRow(row, index, todayStr) {
     originalTrialDurationDays: originalDuration,
     trialExtended: trialExtended ? "Yes" : "No",
     extensionDate,
+    extendedByName: coerceString(row.extended_by_name).trim() || "",
     extendedTrialEndDate: extendedEnd,
     additionalDaysProvided: trialExtended ? additionalDays : null,
     currentTotalTrialDurationDays: currentDuration,
@@ -339,6 +340,7 @@ function buildPayload(rows, opts = {}) {
       aeName:
         "From extract: ae_owner_name → SFDC owner name (SDR/BDR/PS/AE) → property_sales_team_owner → Self Serve",
       extensionDate: "Latest DATE(extended_at) from jc_mastermind.trial_extension per companyid",
+      extendedByName: "adminpanel.name joined on trial_extension.extended_by",
       contractCustomer: "Yes/No from is_contract on int_licence_final_mrr (false when unmatched)",
       trialExtended:
         "Yes when current trial duration is greater than 14 days, for any trial type",

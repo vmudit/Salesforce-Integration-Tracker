@@ -377,6 +377,7 @@ function buildDemoRows() {
       overriden_date: overrideDate ? { value: iso(overrideDate) } : null,
       is_contract: Number(s.companyid) % 2 === 0,
       latest_extension_at_date: extensionDate ? { value: iso(extensionDate) } : null,
+      extended_by_name: s.extended ? (s.ae || "Ops Admin") : null,
     };
   });
 }
