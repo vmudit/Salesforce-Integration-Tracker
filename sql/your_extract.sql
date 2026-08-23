@@ -1,25 +1,26 @@
 -- Source of truth for the Trial Extension extract.
 -- src/queries.js reads this file at runtime:
---   • {{FUNNEL}} {{FUM}} {{UPGRADES}} {{SFDC}} {{LICENCE}} {{TRIAL_EXT}} → validated FQNs
+--   • {{FUNNEL}} {{FUM}} {{UPGRADES}} {{SFDC}} {{LICENCE}} {{TRIAL_EXT}} {{ADMINPANEL}} → validated FQNs
 --   • @rangeStart / @previousPlanId / @changedToPlanId stay bound params (not literals)
 --
 -- Console paste: replace tokens with `project.dataset.table` and declare the @params
 -- (or inline 2026-01-01 / 1194 / 100).
 --
 -- Defaults (override via BQ_*_DATASET / BQ_*_TABLE env):
---   {{FUNNEL}}    hubspot_migration.reporting_user_funnel_new_hs
---   {{FUM}}       analytics_reporting.fact_user_master
---   {{UPGRADES}}  justcall.upgradeDowngradeLogs
---   {{SFDC}}      analytics_seed.hubspot_sfdc_user_role_hs
---   {{LICENCE}}   analytics_intermediate.int_licence_final_mrr
---   {{TRIAL_EXT}} jc_mastermind.trial_extension
+--   {{FUNNEL}}      hubspot_migration.reporting_user_funnel_new_hs
+--   {{FUM}}         analytics_reporting.fact_user_master
+--   {{UPGRADES}}    justcall.upgradeDowngradeLogs
+--   {{SFDC}}        analytics_seed.hubspot_sfdc_user_role_hs
+--   {{LICENCE}}     analytics_intermediate.int_licence_final_mrr
+--   {{TRIAL_EXT}}   jc_mastermind.trial_extension
+--   {{ADMINPANEL}}  justcall.adminpanel
 --
 -- Source query (stakeholder):
 --   funnel + FUM (cust status as of current_date()-1)
 --   + upgradeDowngradeLogs (1194 → 100 = Custom enterprise limit)
 --   + sfdc_user_role_hs (SDR/BDR/PS/AE) on owner_id
 --   + int_licence_final_mrr (is_contract as of current_date()-1, companyid = userid)
---   + trial_extension (latest extended_at per companyid)
+--   + trial_extension (latest extended_at per companyid) + adminpanel.extended_by_name
 --
 -- AE name precedence:
 --   ae_owner_name → smp1.name → property_sales_team_owner → 'Self Serve'
@@ -62,11 +63,17 @@ contract_flag AS (
 
 extended_at_date AS (
   SELECT
-    companyid,
-    extended_by,
-    DATE(extended_at) AS latest_extension_at_date
-  FROM {{TRIAL_EXT}}
-  QUALIFY ROW_NUMBER() OVER (PARTITION BY companyid ORDER BY extended_at DESC) = 1
+    te.companyid,
+    te.extended_by,
+    a.name AS extended_by_name,
+    DATE(te.extended_at) AS latest_extension_at_date
+  FROM {{TRIAL_EXT}} te
+  LEFT JOIN (
+    SELECT DISTINCT id, name
+    FROM {{ADMINPANEL}}
+  ) a
+    ON CAST(te.extended_by AS STRING) = CAST(a.id AS STRING)
+  QUALIFY ROW_NUMBER() OVER (PARTITION BY te.companyid ORDER BY te.extended_at DESC) = 1
 ),
 
 base AS (
@@ -96,7 +103,8 @@ base AS (
     pu.limit_overriden_flag,
     pu.overriden_date,
     COALESCE(cf.is_contract, false) AS is_contract,
-    ext.latest_extension_at_date
+    ext.latest_extension_at_date,
+    ext.extended_by_name
   FROM {{FUNNEL}} a
   LEFT JOIN (
     SELECT *

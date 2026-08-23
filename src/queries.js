@@ -121,6 +121,16 @@ function trialExtensionTable() {
   );
 }
 
+function adminpanelTable() {
+  return datasetTable(
+    "BQ_ADMINPANEL_DATASET",
+    "BQ_ADMINPANEL_TABLE",
+    "justcall",
+    "adminpanel",
+    "adminpanel"
+  );
+}
+
 /** Kept for diagnostics.js compatibility (points at funnel). */
 function factTable() {
   const t = funnelTable();
@@ -143,6 +153,7 @@ function extractTableTokens() {
     SFDC: sfdcUserRoleTable().fqn,
     LICENCE: licenceMrrTable().fqn,
     TRIAL_EXT: trialExtensionTable().fqn,
+    ADMINPANEL: adminpanelTable().fqn,
   };
 }
 
@@ -163,7 +174,7 @@ function applyTableTokens(sql, tables) {
  * - Only rows with TrialTime IS NOT NULL
  * - cust_status from FUM as of current_date()-1
  * - is_contract from int_licence_final_mrr as of current_date()-1 (joined on companyid = userid)
- * - latest_extension_at_date from jc_mastermind.trial_extension (latest extended_at per companyid)
+ * - latest_extension_at_date / extended_by_name from trial_extension + justcall.adminpanel
  */
 function buildExtractSql() {
   let sql;
@@ -203,4 +214,5 @@ module.exports = {
   sfdcUserRoleTable,
   licenceMrrTable,
   trialExtensionTable,
+  adminpanelTable,
 };
