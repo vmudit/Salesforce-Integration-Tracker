@@ -24,6 +24,9 @@
 --
 -- AE name precedence:
 --   ae_owner_name → smp1.name → property_sales_team_owner → 'Self Serve'
+-- plan_selected_new:
+--   is_contract true  → COALESCE(property_c_plan_type, subscription_plan)
+--   is_contract false → COALESCE(changeplan, property_c_plan_type, subscription_plan)
 
 WITH cust_status AS (
   SELECT DISTINCT
@@ -82,6 +85,18 @@ extended_at_date AS (
   QUALIFY ROW_NUMBER() OVER (PARTITION BY te.companyid ORDER BY te.extended_at DESC) = 1
 ),
 
+latest_changeplan AS (
+  SELECT
+    companyid,
+    changedToPlan AS changeplan
+  FROM (
+    SELECT *
+    FROM {{UPGRADES}}
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY companyid ORDER BY insertedAt DESC) = 1
+  )
+  WHERE changedToPlanId IN (@previousPlanId, @changedToPlanId)
+),
+
 base AS (
   SELECT DISTINCT
     a.email,
@@ -111,7 +126,20 @@ base AS (
     pu.overriden_by_name,
     COALESCE(cf.is_contract, false) AS is_contract,
     ext.latest_extension_at_date,
-    ext.extended_by_name
+    ext.extended_by_name,
+    lp.changeplan,
+    CASE
+      WHEN COALESCE(cf.is_contract, false) THEN
+        COALESCE(
+          NULLIF(TRIM(CAST(a.property_c_plan_type AS STRING)), ''),
+          NULLIF(TRIM(CAST(a.subscription_plan AS STRING)), '')
+        )
+      ELSE COALESCE(
+        NULLIF(TRIM(CAST(lp.changeplan AS STRING)), ''),
+        NULLIF(TRIM(CAST(a.property_c_plan_type AS STRING)), ''),
+        NULLIF(TRIM(CAST(a.subscription_plan AS STRING)), '')
+      )
+    END AS plan_selected_new
   FROM {{FUNNEL}} a
   LEFT JOIN (
     SELECT *
@@ -127,6 +155,8 @@ base AS (
     ON CAST(a.companyid AS STRING) = CAST(cf.userid AS STRING)
   LEFT JOIN extended_at_date ext
     ON CAST(a.companyid AS STRING) = CAST(ext.companyid AS STRING)
+  LEFT JOIN latest_changeplan lp
+    ON CAST(a.companyid AS STRING) = CAST(lp.companyid AS STRING)
   WHERE a.TrialTime IS NOT NULL
     AND DATE(a.TrialTime) >= @rangeStart
 )

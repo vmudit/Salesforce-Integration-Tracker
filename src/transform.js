@@ -169,6 +169,7 @@ function mapRow(row, index, todayStr) {
   }
 
   const planSelected =
+    coerceString(row.plan_selected_new).trim() ||
     coerceString(row.property_c_plan_type).trim() ||
     coerceString(row.subscription_plan).trim() ||
     type;
@@ -342,6 +343,8 @@ function buildPayload(rows, opts = {}) {
         "From extract: ae_owner_name → SFDC owner name (SDR/BDR/PS/AE) → property_sales_team_owner → Self Serve",
       extensionDate: "Latest DATE(extended_at) from jc_mastermind.trial_extension per companyid",
       extendedByName: "adminpanel.name joined on trial_extension.extended_by",
+      planSelected:
+        "plan_selected_new: if is_contract then property_c_plan_type → subscription_plan; else changeplan → property_c_plan_type → subscription_plan",
       planUpdatedByName: "adminpanel.name joined on upgradeDowngradeLogs.mmadminid (1194→100)",
       contractCustomer: "Yes/No from is_contract on int_licence_final_mrr (false when unmatched)",
       trialExtended:
