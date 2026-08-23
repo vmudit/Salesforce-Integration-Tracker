@@ -41,8 +41,11 @@ function truthyFlag(value) {
 }
 
 function trialType(row) {
-  const blob = `${coerceString(row.property_c_plan_type)} ${coerceString(row.subscription_plan)}`.toLowerCase();
-  return blob.includes("enterprise") ? "Enterprise" : "Standard";
+  const selected =
+    coerceString(row.plan_selected_new).trim() ||
+    coerceString(row.property_c_plan_type).trim() ||
+    coerceString(row.subscription_plan).trim();
+  return selected.toLowerCase().includes("enterprise") ? "Enterprise" : "Standard";
 }
 
 function trialSegment(row) {
