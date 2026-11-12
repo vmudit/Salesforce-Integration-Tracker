@@ -1,8 +1,6 @@
 /**
- * Trial Extension extract — loads sql/your_extract.sql and fills table tokens.
- *
- * Table identifiers are validated before interpolation (BQ cannot bind them).
- * Filter values are bound as @params.
+ * Salesforce Integration Tracker extract.
+ * Loads sql/your_extract.sql and fills {{TABLE}} tokens with validated FQNs.
  */
 const fs = require("fs");
 const path = require("path");
@@ -11,25 +9,14 @@ const { getProjectId } = require("./bigquery");
 const EXTRACT_SQL_PATH = path.join(__dirname, "..", "sql", "your_extract.sql");
 const TABLE_TOKEN_RE = /\{\{([A-Z_]+)\}\}/g;
 
-const DEFAULT_RANGE_START = "2026-01-01";
-
 const PROJECT_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{2,62}$/;
 const NAME_RE = /^[A-Za-z_][A-Za-z0-9_]{0,1023}$/;
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function checkIdent(value, pattern, label) {
   if (!value || !pattern.test(value)) {
     throw new Error(`Invalid ${label}: ${JSON.stringify(value)}`);
   }
   return value;
-}
-
-function checkDate(value, fallback, label) {
-  const v = value || fallback;
-  if (!DATE_RE.test(v)) {
-    throw new Error(`Invalid ${label}, expected YYYY-MM-DD: ${JSON.stringify(value)}`);
-  }
-  return v;
 }
 
 function projectId() {
@@ -42,32 +29,16 @@ function projectId() {
   return checkIdent(project, PROJECT_RE, "BQ_PROJECT_ID");
 }
 
-function datasetTable(envDataset, envTable, defaultDataset, defaultTable, label) {
+function datasetTable(envDataset, envTable, defaultDataset, defaultTable) {
   const project = projectId();
-  const dataset = checkIdent(
-    process.env[envDataset] || defaultDataset,
-    NAME_RE,
-    envDataset
-  );
+  const dataset = checkIdent(process.env[envDataset] || defaultDataset, NAME_RE, envDataset);
   const table = checkIdent(process.env[envTable] || defaultTable, NAME_RE, envTable);
   return {
     fqn: `\`${project}.${dataset}.${table}\``,
     project,
     dataset,
     table,
-    label,
   };
-}
-
-/** Primary funnel grain — one row per trial-related contact/company. */
-function funnelTable() {
-  return datasetTable(
-    "BQ_FUNNEL_DATASET",
-    "BQ_FUNNEL_TABLE",
-    "hubspot_migration",
-    "reporting_user_funnel_new_hs",
-    "funnel"
-  );
 }
 
 function factUserMasterTable() {
@@ -75,85 +46,63 @@ function factUserMasterTable() {
     "BQ_FUM_DATASET",
     "BQ_FUM_TABLE",
     "analytics_reporting",
-    "fact_user_master",
     "fact_user_master"
   );
 }
 
-function upgradeLogsTable() {
+function justcallUsersTable() {
   return datasetTable(
-    "BQ_UPGRADE_DATASET",
-    "BQ_UPGRADE_TABLE",
-    "justcall",
-    "upgradeDowngradeLogs",
-    "upgrade_logs"
-  );
-}
-
-/** Former dbt ref('sfdc_user_role_hs') — override via env if FQN differs. */
-function sfdcUserRoleTable() {
-  return datasetTable(
-    "BQ_SFDC_DATASET",
-    "BQ_SFDC_TABLE",
-    "analytics_seed",
-    "hubspot_sfdc_user_role_hs",
-    "sfdc_user_role"
-  );
-}
-
-function licenceMrrTable() {
-  return datasetTable(
-    "BQ_LICENCE_DATASET",
-    "BQ_LICENCE_TABLE",
+    "BQ_JC_USERS_DATASET",
+    "BQ_JC_USERS_TABLE",
     "analytics_intermediate",
-    "int_licence_final_mrr",
-    "licence_mrr"
+    "justcall_users"
   );
 }
 
-function trialExtensionTable() {
+function internalEmailsTable() {
   return datasetTable(
-    "BQ_TRIAL_EXT_DATASET",
-    "BQ_TRIAL_EXT_TABLE",
-    "jc_mastermind",
-    "trial_extension",
-    "trial_extension"
+    "BQ_INTERNAL_EMAILS_DATASET",
+    "BQ_INTERNAL_EMAILS_TABLE",
+    "analytics_intermediate",
+    "int_internal_emails"
   );
 }
 
-function adminpanelTable() {
+function intLogsStatusTable() {
   return datasetTable(
-    "BQ_ADMINPANEL_DATASET",
-    "BQ_ADMINPANEL_TABLE",
+    "BQ_INT_LOGS_DATASET",
+    "BQ_INT_LOGS_TABLE",
     "justcall",
-    "adminpanel",
-    "adminpanel"
+    "int_logs_status"
   );
 }
 
-/** Kept for diagnostics.js compatibility (points at funnel). */
-function factTable() {
-  const t = funnelTable();
-  return { fqn: t.fqn, project: t.project, dataset: t.dataset, table: t.table };
+function intConnectTable() {
+  return datasetTable(
+    "BQ_INT_CONNECT_DATASET",
+    "BQ_INT_CONNECT_TABLE",
+    "justcall",
+    "int_connect_jclive"
+  );
 }
 
-function extractParams() {
-  return {
-    rangeStart: checkDate(process.env.BQ_RANGE_START, DEFAULT_RANGE_START, "BQ_RANGE_START"),
-    previousPlanId: Number(process.env.BQ_PREVIOUS_PLAN_ID || 1194),
-    changedToPlanId: Number(process.env.BQ_CHANGED_TO_PLAN_ID || 100),
-  };
+function salesforceInfoTable() {
+  return datasetTable(
+    "BQ_SF_INFO_DATASET",
+    "BQ_SF_INFO_TABLE",
+    "jclive",
+    "salesforce_info"
+  );
 }
 
 function extractTableTokens() {
   return {
-    FUNNEL: funnelTable().fqn,
-    FUM: factUserMasterTable().fqn,
-    UPGRADES: upgradeLogsTable().fqn,
-    SFDC: sfdcUserRoleTable().fqn,
-    LICENCE: licenceMrrTable().fqn,
-    TRIAL_EXT: trialExtensionTable().fqn,
-    ADMINPANEL: adminpanelTable().fqn,
+    FACT_USER_MASTER: factUserMasterTable().fqn,
+    JUSTCALL_USERS: justcallUsersTable().fqn,
+    INTERNAL_EMAILS: internalEmailsTable().fqn,
+    INT_LOGS_STATUS: intLogsStatusTable().fqn,
+    INT_CONNECT_JCLIVE: intConnectTable().fqn,
+    SALESFORCE_INFO: salesforceInfoTable().fqn,
   };
 }
 
@@ -166,16 +115,11 @@ function applyTableTokens(sql, tables) {
   });
 }
 
-/**
- * Trial base extract — query text lives in sql/your_extract.sql (single source).
- * Assumptions baked into SQL (confirm with stakeholders):
- * - Limit override / Custom = first upgrade from previousPlanId (1194) → changedToPlanId (100)
- * - Default limit type is derived in transform for Enterprise trials without that upgrade
- * - Only rows with TrialTime IS NOT NULL
- * - cust_status from FUM as of current_date()-1
- * - is_contract from int_licence_final_mrr as of current_date()-1 (joined on companyid = userid)
- * - latest_extension_at_date / extended_by_name from trial_extension + justcall.adminpanel
- */
+/** No bound parameters — dates are computed inside BigQuery. */
+function extractParams() {
+  return {};
+}
+
 function buildExtractSql() {
   let sql;
   try {
@@ -187,19 +131,23 @@ function buildExtractSql() {
   }
 
   sql = applyTableTokens(sql, extractTableTokens()).replace(/;\s*$/, "").trim();
+  const leftover = sql.match(/\{\{[A-Z_]+\}\}/);
+  if (leftover) {
+    throw new Error(`Extract SQL still contains an unsubstituted token ${leftover[0]}`);
+  }
   return sql;
 }
 
+/** Aggregate-only probe. Never returns customer rows. */
 function buildProbeSql() {
-  const funnel = funnelTable().fqn;
+  const info = salesforceInfoTable();
   return `
-    SELECT
-      COUNT(*) AS row_count,
-      MIN(DATE(TrialTime)) AS min_date,
-      MAX(DATE(TrialTime)) AS max_date
-    FROM ${funnel}
-    WHERE TrialTime IS NOT NULL
-      AND DATE(TrialTime) >= @rangeStart
+    SELECT COUNT(*) AS row_count
+    FROM ${info.fqn}
+    WHERE issued_at IS NOT NULL
+      AND sfuserid IS NOT NULL
+      AND userid IS NOT NULL
+      AND companyid IS NOT NULL
   `;
 }
 
@@ -207,12 +155,6 @@ module.exports = {
   buildExtractSql,
   buildProbeSql,
   extractParams,
-  factTable,
-  funnelTable,
   factUserMasterTable,
-  upgradeLogsTable,
-  sfdcUserRoleTable,
-  licenceMrrTable,
-  trialExtensionTable,
-  adminpanelTable,
+  salesforceInfoTable,
 };

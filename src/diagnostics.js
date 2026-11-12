@@ -1,26 +1,19 @@
-const { runQuery, unwrapBqValue, coerceNumber } = require("./bigquery");
-const { buildProbeSql, extractParams, factTable } = require("./queries");
+const { runQuery, coerceNumber } = require("./bigquery");
+const { buildProbeSql, salesforceInfoTable } = require("./queries");
 
 /**
  * Connectivity probe for /api/debug/bigquery.
- * Return aggregates only — never row-level customer data.
+ * Returns an aggregate count only — never row-level customer data.
  */
 async function runDiagnostics() {
-  const { project, dataset, table } = factTable();
-  const params = extractParams();
-
+  const { project, dataset, table } = salesforceInfoTable();
   const started = Date.now();
-  // Probe only needs rangeStart (DATE); ignore numeric plan IDs.
-  const probeParams = { rangeStart: params.rangeStart };
-  const rows = await runQuery(buildProbeSql(), probeParams);
+  const rows = await runQuery(buildProbeSql(), {});
   const r = rows[0] || {};
 
   return {
     target: { project, dataset, table },
-    window: probeParams,
     rowCount: coerceNumber(r.row_count),
-    minDate: unwrapBqValue(r.min_date),
-    maxDate: unwrapBqValue(r.max_date),
     elapsedMs: Date.now() - started,
   };
 }

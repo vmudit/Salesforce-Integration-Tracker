@@ -3,1303 +3,789 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Trial Extension Dashboard</title>
+  <title>Salesforce Integration Tracker</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --bg: #0b0f19;
-      --surface: #111827;
-      --surface-2: #0f172a;
-      --fg: #e2e8f0;
-      --fg-strong: #f8fafc;
-      --muted: #64748b;
-      --muted-2: #94a3b8;
-      --line: #1e293b;
-      --line-2: #334155;
-      --accent: #6366f1;
-      --accent-soft: rgba(99, 102, 241, 0.14);
-      --green: #4ade80;
-      --teal: #2dd4bf;
-      --orange: #fb923c;
-      --red: #f87171;
-      --blue: #60a5fa;
-      --pink: #f472b6;
-      --yellow: #eab308;
-      --radius: 12px;
+      --bg: #f4f6f8;
+      --surface: #ffffff;
+      --ink: #1b2430;
+      --muted: #5c6b7a;
+      --line: #d5dde5;
+      --line-strong: #b7c3cf;
+      --header: #eef3f8;
+      --header-ink: #243140;
+      --accent: #0176d3;
+      --accent-soft: #e8f4fd;
+      --green: #0b6b3a;
+      --red: #b42318;
+      --shadow: 0 12px 32px rgba(16, 36, 58, 0.16);
       --font: "Inter", sans-serif;
-      --mono: ui-monospace, "SF Mono", Menlo, monospace;
+      --row-h: 32px;
     }
 
     * { box-sizing: border-box; }
     html, body {
       margin: 0;
+      height: 100%;
       font-family: var(--font);
       background: var(--bg);
-      color: var(--fg);
-      height: 100%;
-      overflow: hidden;
+      color: var(--ink);
     }
 
-    .wrap {
-      max-width: 1400px;
-      margin: 0 auto;
-      padding: 0.75rem 1.25rem 0;
+    .app {
       height: 100vh;
       display: flex;
       flex-direction: column;
       min-height: 0;
     }
 
-    .dashboard-header {
-      display: grid;
-      grid-template-columns: 1fr auto 1fr;
-      align-items: center;
-      gap: 1rem;
-      margin-bottom: 0.45rem;
-      flex-shrink: 0;
-    }
-    .dashboard-title {
-      margin: 0;
-      grid-column: 2;
-      justify-self: center;
-      font-size: 1.75rem;
-      font-weight: 700;
-      color: var(--fg-strong);
-      letter-spacing: -0.02em;
-      text-align: center;
-    }
-    .header-actions {
-      grid-column: 3;
-      justify-self: end;
+    header {
       display: flex;
-      flex-direction: column;
       align-items: flex-end;
-      padding-right: 1rem;
-    }
-    @media (max-width: 700px) {
-      .dashboard-header {
-        grid-template-columns: 1fr;
-        justify-items: center;
-      }
-      .dashboard-title { grid-column: 1; }
-      .header-actions { grid-column: 1; justify-self: center; }
-    }
-
-    #status {
-      margin-bottom: 1rem;
-      color: var(--muted-2);
-      font-size: 0.88rem;
-      flex-shrink: 0;
-    }
-    #status:empty,
-    #status[hidden] { display: none; }
-    #status.error { color: var(--red); }
-
-    #filters-panel {
-      flex-shrink: 0;
-      z-index: 20;
-      margin-bottom: 0.75rem;
-      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
-      overflow: visible;
-    }
-
-    .scroll-body {
-      flex: 1;
-      min-height: 0;
-      overflow: auto;
-      padding-bottom: 2rem;
-    }
-
-    .kpis {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 0.75rem;
-      margin-bottom: 1.25rem;
-    }
-    @media (min-width: 1100px) {
-      .kpis { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-    }
-    @media (max-width: 700px) {
-      .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    }
-
-    .kpi-card {
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1rem 1.25rem 0.85rem;
       background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: var(--radius);
-      padding: 0.85rem 1rem;
-      min-height: 5.35rem;
-      box-sizing: border-box;
-    }
-    .kpi-label {
-      color: var(--muted);
-      font-size: 0.68rem;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-      text-transform: uppercase;
-      margin-bottom: 0.35rem;
-    }
-    .kpi-value {
-      font-size: 1.55rem;
-      font-weight: 700;
-      line-height: 1.1;
-      color: var(--fg-strong);
-      font-variant-numeric: tabular-nums;
-    }
-    .kpi-value.teal { color: var(--teal); }
-    .kpi-value.green { color: var(--green); }
-    .kpi-value.orange { color: var(--orange); }
-    .kpi-value.blue { color: var(--blue); }
-    .kpi-value.pink { color: var(--pink); }
-    .kpi-value.yellow { color: var(--yellow); }
-    .kpi-sub {
-      color: var(--muted);
-      font-size: 0.72rem;
-      margin-top: 0.25rem;
-    }
-
-    .limit-type-note {
-      color: var(--yellow);
-      font-size: 0.84rem;
-      font-weight: 500;
-      line-height: 1.45;
-      margin: -0.35rem 0 1.15rem;
-    }
-
-    .panel {
-      background: var(--surface);
-      border: 1px solid var(--line);
-      border-radius: 14px;
-      margin-bottom: 1rem;
-      overflow: hidden;
-    }
-    .panel-h {
-      padding: 0.75rem 1rem 0.55rem;
       border-bottom: 1px solid var(--line);
     }
-    #filters-panel .panel-h {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 0.75rem;
-      padding-top: 0.45rem;
-    }
-    .panel-title {
-      font-size: 0.95rem;
-      font-weight: 600;
-      color: #f1f5f9;
-      margin: 0;
-    }
-    .panel-subtitle {
-      color: var(--muted);
-      font-size: 0.75rem;
-      margin: 0.15rem 0 0;
-    }
-    .panel-b { padding: 0.75rem 1rem; }
 
-    .filters {
-      display: flex;
-      flex-direction: column;
-      gap: 0.5rem;
+    h1 {
+      margin: 0;
+      font-size: 1.45rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
     }
-    .filters-row {
-      display: grid;
-      gap: 0.5rem 0.65rem;
-      align-items: end;
-    }
-    .filters-row-5 { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-    .filters-row-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
-    @media (max-width: 1100px) {
-      .filters-row-5,
-      .filters-row-4 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-    }
-    @media (max-width: 900px) {
-      .filters-row-5,
-      .filters-row-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    }
-    @media (max-width: 560px) {
-      .filters-row-5,
-      .filters-row-4 { grid-template-columns: 1fr 1fr; }
-    }
-    label {
-      display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
-      font-size: 0.72rem;
-      font-weight: 600;
+
+    .meta {
+      margin-top: 0.3rem;
       color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
+      font-size: 0.82rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.45rem 0.7rem;
+      align-items: center;
     }
-    .filters label {
-      min-width: 0;
-      gap: 0.22rem;
-      font-size: 0.62rem;
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 0.1rem 0.5rem;
+      background: #fff6e5;
+      color: #8a5a00;
+      font-weight: 600;
+      font-size: 0.72rem;
     }
-    .filters input,
-    .filters select {
-      width: 100%;
-      min-width: 0;
-      font-size: 0.74rem;
-      padding: 0.22rem 0.45rem;
-      min-height: 2rem;
-      height: 2rem;
-      border-radius: 8px;
+
+    .header-actions {
+      display: flex;
+      gap: 0.5rem;
+      align-items: center;
+      padding-bottom: 0.15rem;
     }
-    .filters input[type="date"] {
-      font-size: 0.7rem;
-      padding: 0.18rem 0.45rem;
+
+    button {
+      font-family: inherit;
     }
-    .ms {
+
+    .text-btn {
+      border: 1px solid var(--line-strong);
+      background: var(--surface);
+      color: var(--header-ink);
+      border-radius: 6px;
+      padding: 0.4rem 0.7rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .text-btn:disabled {
+      opacity: 0.45;
+      cursor: default;
+    }
+    .text-btn:not(:disabled):hover { background: var(--accent-soft); }
+
+    #status {
+      padding: 0.55rem 1.25rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    #status.error { color: var(--red); background: #fff1f0; }
+    #status:empty { display: none; }
+
+    .grid-wrap {
+      flex: 1;
+      min-height: 0;
+      margin: 0.75rem 1rem 1rem;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: auto;
       position: relative;
     }
-    .ms-toggle {
-      width: 100%;
-      height: 2rem;
-      min-height: 2rem;
-      padding: 0.22rem 0.45rem;
-      font-size: 0.74rem;
+
+    table {
+      border-collapse: separate;
+      border-spacing: 0;
+      min-width: 100%;
+      font-size: 0.8rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    thead th {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+      background: var(--header);
+      color: var(--header-ink);
       font-weight: 600;
       text-align: left;
+      border-bottom: 1px solid var(--line-strong);
+      border-right: 1px solid var(--line);
+      height: 38px;
+      padding: 0;
+      white-space: nowrap;
+    }
+
+    .th-inner {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0 0.35rem 0 0.65rem;
+      min-width: 148px;
+      height: 38px;
+    }
+
+    .th-label {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .sort-mark {
+      color: var(--accent);
+      font-size: 0.72rem;
+    }
+
+    .filter-btn {
+      width: 22px;
+      height: 22px;
+      border: 0;
+      border-radius: 4px;
+      background: transparent;
+      color: #7b8b9a;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex: 0 0 auto;
+    }
+    .filter-btn:hover,
+    .filter-btn.open { background: #d9e6f2; color: var(--header-ink); }
+    .filter-btn.active { color: var(--accent); background: var(--accent-soft); }
+
+    tbody td {
+      height: var(--row-h);
+      max-width: 240px;
+      padding: 0 0.65rem;
+      border-bottom: 1px solid #e8eef3;
+      border-right: 1px solid #f0f4f7;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      vertical-align: middle;
+    }
+
+    tbody tr:hover td { background: #f5f9fc; }
+    td.num { text-align: right; }
+    td.pos { color: var(--green); font-weight: 600; }
+    td.neg { color: var(--red); font-weight: 600; }
+    td.flag-on { font-weight: 700; color: var(--accent); }
+    td.empty { height: auto; max-width: none; }
+
+    .spacer td {
+      padding: 0;
+      border: 0;
+      background: transparent;
+    }
+    .spacer:hover td { background: transparent; }
+
+    .empty {
+      padding: 2.5rem 1rem;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .popover {
+      position: fixed;
+      z-index: 20;
+      width: 280px;
+      background: var(--surface);
+      border: 1px solid var(--line-strong);
       border-radius: 8px;
-      background: var(--surface-2);
-      color: var(--fg);
+      box-shadow: var(--shadow);
+      display: flex;
+      flex-direction: column;
+      max-height: min(460px, calc(100vh - 16px));
+    }
+    .popover[hidden] { display: none; }
+
+    .pop-sort,
+    .pop-clear {
+      display: block;
+      width: 100%;
+      text-align: left;
+      border: 0;
+      background: transparent;
+      padding: 0.55rem 0.75rem;
+      font-size: 0.82rem;
+      cursor: pointer;
+      color: var(--ink);
+    }
+    .pop-sort:hover,
+    .pop-clear:hover { background: var(--accent-soft); }
+    .pop-clear { color: var(--accent); font-weight: 600; }
+    .pop-clear[hidden] { display: none; }
+    .pop-rule { height: 1px; background: var(--line); margin: 0; }
+
+    .pop-search-wrap { padding: 0.55rem 0.65rem 0.35rem; }
+    .pop-search {
+      width: 100%;
+      border: 1px solid var(--line-strong);
+      border-radius: 6px;
+      padding: 0.4rem 0.5rem;
+      font: inherit;
+      font-size: 0.82rem;
+    }
+    .pop-search:focus {
+      outline: 2px solid rgba(1, 118, 211, 0.25);
+      border-color: var(--accent);
+    }
+
+    .value-list {
+      overflow: auto;
+      padding: 0.15rem 0.35rem 0.4rem;
+      min-height: 80px;
+    }
+
+    .value-row {
+      display: flex;
+      align-items: center;
+      gap: 0.45rem;
+      padding: 0.22rem 0.35rem;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      cursor: pointer;
+    }
+    .value-row:hover { background: #f3f7fb; }
+    .value-row span {
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
-    .ms-toggle:hover {
-      background: #1e293b;
-      color: var(--fg);
+
+    .pop-note {
+      color: var(--muted);
+      font-size: 0.72rem;
+      padding: 0 0.75rem 0.4rem;
     }
-    .ms-menu {
-      position: absolute;
-      top: calc(100% + 4px);
-      left: 0;
-      right: 0;
-      z-index: 40;
-      background: #0f172a;
-      border: 1px solid var(--line-2);
-      border-radius: 8px;
-      padding: 0.3rem;
-      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
-    }
-    .ms-option {
+
+    .pop-actions {
       display: flex;
-      flex-direction: row;
-      align-items: center;
+      justify-content: flex-end;
       gap: 0.4rem;
-      padding: 0.28rem 0.4rem;
-      margin: 0;
-      font-size: 0.74rem;
-      font-weight: 500;
-      text-transform: none;
-      letter-spacing: normal;
-      color: var(--fg);
-      border-radius: 6px;
-      cursor: pointer;
-    }
-    .ms-option:hover { background: #1e293b; }
-    .ms-option input {
-      width: auto;
-      min-width: 0;
-      height: auto;
-      min-height: 0;
-      margin: 0;
-      padding: 0;
-      accent-color: var(--accent);
-    }
-    input, select {
-      font: inherit;
-      font-size: 0.82rem;
-      font-weight: 600;
-      text-transform: none;
-      letter-spacing: normal;
-      color: var(--fg);
-      background: var(--surface-2);
-      border: 1px solid var(--line-2);
-      border-radius: 10px;
       padding: 0.5rem 0.65rem;
-      min-height: 2.5rem;
-    }
-    input[type="date"] {
-      color-scheme: dark;
-      background: var(--accent-soft);
-      border-color: rgba(99, 102, 241, 0.42);
-      color: #a5b4fc;
-      border-radius: 999px;
-      font-size: 0.78rem;
-    }
-    input:focus, select:focus {
-      outline: none;
-      border-color: var(--accent);
-      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
-    }
-    button {
-      font: inherit;
-      font-size: 0.9rem;
-      font-weight: 600;
-      border-radius: 10px;
-      border: 1px solid var(--line-2);
-      background: var(--surface);
-      color: var(--muted-2);
-      padding: 0 0.85rem;
-      height: 2.5rem;
-      cursor: pointer;
-    }
-    button:hover {
-      background: #1e293b;
-      border-color: var(--accent);
-      color: var(--fg);
-    }
-    button.primary {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: #fff;
-    }
-    button.primary:hover {
-      background: #4f46e5;
-      border-color: #4f46e5;
-      color: #fff;
-    }
-    .btn-quiet {
-      width: 4.75rem;
-      height: 1.75rem;
-      padding: 0;
-      font-size: 0.7rem;
-      font-weight: 500;
-      background: transparent;
-      border: 1px solid rgba(74, 222, 128, 0.28);
-      color: rgba(74, 222, 128, 0.72);
-      border-radius: 8px;
-      text-align: center;
-    }
-    .btn-quiet:hover {
-      background: rgba(74, 222, 128, 0.08);
-      border-color: rgba(74, 222, 128, 0.45);
-      color: var(--green);
+      border-top: 1px solid var(--line);
     }
 
-    .toolbar {
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      align-items: center;
-      gap: 0.75rem;
-      margin-bottom: 0.75rem;
-      color: var(--muted-2);
-      font-size: 0.85rem;
-    }
-    .pager {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 0.4rem;
-    }
-    .pager button {
-      height: 2.1rem;
-      padding: 0 0.7rem;
-      font-size: 0.78rem;
-    }
-    .pager button:disabled {
-      opacity: 0.4;
-      cursor: not-allowed;
-    }
-    #page-info {
-      min-width: 7.5rem;
-      text-align: center;
-      font-size: 0.78rem;
-      color: var(--muted);
-    }
-    #f-page-size {
-      width: auto;
-      min-width: 7.5rem;
-      height: 2.1rem;
-    }
-    .search {
-      min-width: min(280px, 100%);
-      background: var(--surface-2);
-    }
-
-    .table-wrap {
-      overflow-x: auto;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      background: var(--surface);
-    }
-    #table-panel {
-      overflow: visible;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.82rem;
-      white-space: nowrap;
-    }
-    th, td {
-      text-align: left;
-      padding: 0.6rem 0.65rem;
-      border-bottom: 1px solid #151f32;
-      vertical-align: top;
-    }
-    th {
-      position: sticky;
-      top: 0;
-      background: #0f172a;
-      color: var(--muted);
-      font-weight: 600;
-      font-size: 0.68rem;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      z-index: 1;
-      cursor: pointer;
-      user-select: none;
-      border-bottom: 1px solid var(--line);
-    }
-    th:hover { color: #a5b4fc; }
-    th .sort { opacity: 0.45; margin-left: 0.2rem; }
-    tbody tr:hover td { background: rgba(255, 255, 255, 0.02); }
-    td.num {
-      font-variant-numeric: tabular-nums;
-      font-family: var(--mono);
+    .btn-ok, .btn-cancel {
+      border-radius: 6px;
+      padding: 0.35rem 0.7rem;
       font-size: 0.8rem;
-      color: #cbd5e1;
-    }
-    td.muted { color: var(--muted); }
-
-    .pill {
-      display: inline-block;
-      padding: 0.15rem 0.55rem;
-      border-radius: 999px;
-      font-size: 0.68rem;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-    }
-    .pill.ongoing { background: rgba(96, 165, 250, 0.15); color: var(--blue); }
-    .pill.expired { background: rgba(148, 163, 184, 0.12); color: #94a3b8; }
-    .pill.converted { background: rgba(34, 197, 94, 0.15); color: var(--green); }
-    .pill.cancelled { background: rgba(248, 113, 113, 0.15); color: var(--red); }
-    .pill.yes { background: rgba(99, 102, 241, 0.18); color: #a5b4fc; }
-    .pill.no { background: rgba(148, 163, 184, 0.1); color: #94a3b8; }
-    .pill.enterprise { background: rgba(99, 102, 241, 0.18); color: #a5b4fc; }
-    .pill.standard { background: rgba(45, 212, 191, 0.15); color: var(--teal); }
-
-    .notes {
-      margin-top: 0.85rem;
-      font-size: 0.8rem;
-      color: var(--muted);
-      line-height: 1.45;
-    }
-    .notes summary {
+      font-weight: 600;
       cursor: pointer;
-      font-weight: 600;
-      color: var(--muted-2);
     }
-    .notes ul { margin: 0.5rem 0 0; padding-left: 1.1rem; }
-
-    .tabs {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem;
-      margin: 0 0 1rem;
-      padding-bottom: 0.35rem;
-      border-bottom: 1px solid var(--line);
-    }
-    .tab-btn {
-      background: var(--surface);
-      border: 1px solid var(--line-2);
-      color: var(--muted-2);
-      border-radius: 10px;
-      font-size: 0.82rem;
-      font-weight: 600;
-      height: 2.35rem;
-      padding: 0 1.1rem;
-    }
-    .tab-btn:hover {
-      color: var(--fg);
-      border-color: var(--accent);
-      background: #1e293b;
-    }
-    .tab-btn.active {
+    .btn-ok {
       background: var(--accent);
-      border-color: var(--accent);
-      color: #fff;
+      color: white;
+      border: 1px solid var(--accent);
     }
-    .subtabs {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.45rem;
-      margin-bottom: 0.85rem;
+    .btn-cancel {
+      background: var(--surface);
+      border: 1px solid var(--line-strong);
+      color: var(--header-ink);
     }
-    .subtab-btn {
-      background: #0f172a;
-      border: 1px solid var(--line-2);
-      color: var(--muted-2);
-      border-radius: 10px;
-      font-size: 0.78rem;
-      font-weight: 600;
-      height: 2.1rem;
-      padding: 0 0.9rem;
-    }
-    .subtab-btn:hover {
-      color: var(--fg);
-      border-color: var(--accent);
-    }
-    .subtab-btn.active {
-      background: rgba(99, 102, 241, 0.22);
-      border-color: var(--accent);
-      color: #c7d2fe;
-    }
-    .tab-panel { display: none; }
-    .tab-panel.active { display: block; }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <header class="dashboard-header">
-      <h1 class="dashboard-title">Trial Extension Dashboard</h1>
+  <div class="app">
+    <header>
+      <div>
+        <h1>Salesforce Integration Tracker</h1>
+        <div class="meta" id="meta"></div>
+      </div>
       <div class="header-actions">
-        <button type="button" class="btn-quiet" id="btn-refresh" title="Force refresh from source">Refresh</button>
+        <button class="text-btn" id="clear-filters" type="button" disabled>Reset view</button>
       </div>
     </header>
-
     <div id="status">Loading…</div>
+    <div class="grid-wrap" id="grid">
+      <table>
+        <thead id="thead"></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </div>
 
-    <section class="panel" id="filters-panel" hidden>
-      <div class="panel-h">
-        <div class="panel-title">Filters</div>
-        <button type="button" class="btn-quiet" id="btn-reset">Reset</button>
-      </div>
-      <div class="panel-b">
-        <div class="filters">
-          <div class="filters-row filters-row-5">
-          <label>Date level
-            <select id="f-date-level">
-              <option value="day">Day</option>
-              <option value="week">Week</option>
-              <option value="month">Month</option>
-              <option value="year">Year</option>
-            </select>
-          </label>
-          <label>
-            <span id="lbl-start-from-text">Trial start from</span>
-            <input type="date" id="f-start-from" />
-          </label>
-          <label>
-            <span id="lbl-start-to-text">Trial start to</span>
-            <input type="date" id="f-start-to" />
-          </label>
-          <label>Trial type
-            <select id="f-type"><option value="">All</option></select>
-          </label>
-          <label>AE name
-            <select id="f-ae"><option value="">All</option></select>
-          </label>
-          </div>
-          <div class="filters-row filters-row-4">
-          <label>Trial status
-            <div class="ms" id="f-status">
-              <button type="button" class="ms-toggle" id="f-status-toggle">All</button>
-              <div class="ms-menu" id="f-status-menu" hidden></div>
-            </div>
-          </label>
-          <label>Extended
-            <select id="f-extended">
-              <option value="">All</option>
-              <option value="Yes">Extended (&gt;14 days)</option>
-              <option value="No">Not extended (14 days)</option>
-            </select>
-          </label>
-          <label>Limit type
-            <select id="f-limit-type">
-              <option value="">All</option>
-              <option value="Default">Default</option>
-              <option value="Custom">Custom</option>
-            </select>
-          </label>
-          <label>Contract customer
-            <select id="f-contract">
-              <option value="">All</option>
-              <option value="Yes">Yes</option>
-              <option value="No">No</option>
-            </select>
-          </label>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <div class="scroll-body">
-    <section class="kpis" id="kpis" hidden></section>
-    <p class="limit-type-note" id="limit-type-note" hidden>
-      Note: Enterprise trial Limit Type (Default vs Custom / Unlimited) is available from 5 August 2026. Use this filter for trials from that date onward.
-    </p>
-
-    <section class="panel" id="table-panel" hidden>
-      <div class="panel-h">
-        <div class="panel-title">Trials</div>
-        <div class="panel-subtitle">One row per company — multiple emails on the same company ID are collapsed</div>
-      </div>
-      <div class="panel-b">
-        <div class="tabs" role="tablist">
-          <button type="button" class="tab-btn active" data-main-tab="summary">Summary</button>
-          <button type="button" class="tab-btn" data-main-tab="detailed">Detailed breakdown</button>
-        </div>
-
-        <div class="toolbar">
-          <span id="row-count"></span>
-          <div class="pager">
-            <button type="button" id="btn-prev">Prev</button>
-            <span id="page-info"></span>
-            <button type="button" id="btn-next">Next</button>
-            <select id="f-page-size" aria-label="Rows per page">
-              <option value="50">50 / page</option>
-              <option value="100" selected>100 / page</option>
-              <option value="250">250 / page</option>
-            </select>
-          </div>
-          <input class="search" type="search" id="f-search" placeholder="Search account, UID, AE…" />
-        </div>
-
-        <div class="tab-panel active" id="panel-summary">
-          <div class="table-wrap">
-            <table>
-              <thead id="thead-summary"></thead>
-              <tbody id="tbody-summary"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <div class="tab-panel" id="panel-detailed">
-          <div class="subtabs" role="tablist">
-            <button type="button" class="subtab-btn active" data-detail-tab="account">Account details</button>
-            <button type="button" class="subtab-btn" data-detail-tab="duration">Trial duration</button>
-            <button type="button" class="subtab-btn" data-detail-tab="limits">Trial limits</button>
-            <button type="button" class="subtab-btn" data-detail-tab="conversion">Conversion details</button>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead id="thead-detailed"></thead>
-              <tbody id="tbody-detailed"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <details class="notes">
-          <summary>Field mapping notes</summary>
-          <div id="field-notes"></div>
-        </details>
-      </div>
-    </section>
+  <div class="popover" id="popover" hidden>
+    <button class="pop-sort" type="button" data-dir="asc">Sort A to Z</button>
+    <button class="pop-sort" type="button" data-dir="desc">Sort Z to A</button>
+    <button class="pop-clear" type="button" id="pop-clear" hidden>Clear filter</button>
+    <div class="pop-rule"></div>
+    <div class="pop-search-wrap">
+      <input class="pop-search" id="pop-search" type="search" placeholder="Search values" autocomplete="off" />
+    </div>
+    <div class="value-list" id="value-list"></div>
+    <div class="pop-note" id="pop-note"></div>
+    <div class="pop-actions">
+      <button class="btn-cancel" id="pop-cancel" type="button">Cancel</button>
+      <button class="btn-ok" id="pop-ok" type="button">OK</button>
     </div>
   </div>
 
   <script>
-    const SUMMARY_COLUMNS = [
-      { key: "accountUid", label: "Company ID" },
-      { key: "companyName", label: "Company name" },
-      { key: "email", label: "Email" },
-      { key: "planSelected", label: "Plan selected", render: "type" },
-      { key: "planUpdatedByName", label: "Plan Updated by name" },
-      { key: "trialStartDate", label: "Trial start date" },
-      { key: "currentTrialEndDate", label: "Trial end date" },
-      { key: "currentTotalTrialDurationDays", label: "Total trial days", render: "num" },
-      { key: "extendedDaysBeyond14", label: "Extended days", render: "num" },
-      { key: "extensionDate", label: "Extended on date" },
-      { key: "extendedByName", label: "Extended by name" },
-      { key: "currentTrialStatus", label: "Status", render: "status" },
-      { key: "closedWonDate", label: "Customer time" },
-      { key: "daysTrialToClosedWon", label: "Trial to customer days", render: "num" },
-      { key: "mrrGenerated", label: "MRR", render: "money" },
-      { key: "aeName", label: "AE name" },
-      { key: "contractCustomer", label: "Contract customer", render: "yn" },
-    ];
+    const ROW_H = 32;
+    const LIST_CAP = 400;
+    const BLANK = "(Blanks)";
 
-    const DETAIL_COLUMNS = {
-      account: [
-        { key: "accountName", label: "Account name" },
-        { key: "accountUid", label: "Account UID" },
-        { key: "trialType", label: "Trial type", render: "type" },
-        { key: "trialSegment", label: "Trial segment" },
-        { key: "aeName", label: "AE name" },
-        { key: "contractCustomer", label: "Contract customer", render: "yn" },
-      ],
-      duration: [
-        { key: "accountUid", label: "Account UID" },
-        { key: "trialStartDate", label: "Trial start date" },
-        { key: "originalTrialEndDate", label: "Original trial end date" },
-        { key: "originalTrialDurationDays", label: "Original trial duration (days)", render: "num" },
-        { key: "trialExtended", label: "Trial extended", render: "yn" },
-        { key: "extensionDate", label: "Extended on date" },
-        { key: "extendedByName", label: "Extended by name" },
-        { key: "extendedTrialEndDate", label: "Extended trial end date" },
-        { key: "additionalDaysProvided", label: "Additional days provided", render: "num" },
-        { key: "currentTotalTrialDurationDays", label: "Current total trial duration", render: "num" },
-        { key: "currentTrialStatus", label: "Current trial status", render: "status" },
-      ],
-      limits: [
-        { key: "accountUid", label: "Account UID" },
-        { key: "usageLimitApplied", label: "Usage limit applied", render: "limit" },
-        { key: "limitType", label: "Limit type" },
-        { key: "limitOverridden", label: "Limit overridden", render: "yn" },
-        { key: "limitOverrideDate", label: "Date of limit override" },
-        { key: "planUpdatedByName", label: "Plan Updated by name" },
-      ],
-      conversion: [
-        { key: "accountUid", label: "Account UID" },
-        { key: "convertedToPaid", label: "Converted to paid", render: "yn" },
-        { key: "closedWonDate", label: "Closed-won date" },
-        { key: "mrrGenerated", label: "MRR generated", render: "money" },
-        { key: "daysTrialToClosedWon", label: "Days from trial start to closed-won", render: "num" },
-        { key: "aeConversionOwner", label: "AE name (conversion)" },
-      ],
+    const state = {
+      columns: [],
+      records: [],
+      filtered: [],
+      filters: new Map(),
+      sort: null,
+      demoMode: false,
+      generatedAt: null,
+      draft: null,
+      uniqueCache: new Map(),
     };
 
-    let DATA = null;
-    let sortKey = "trialStartDate";
-    let sortDir = "desc";
-    let mainTab = "summary";
-    let detailTab = "account";
-    let page = 1;
-    let pageSize = 100;
-    let filteredCache = null;
-    let filterCacheKey = "";
-    let searchTimer = null;
-    let selectedStatuses = new Set();
+    const grid = document.getElementById("grid");
+    const thead = document.getElementById("thead");
+    const tbody = document.getElementById("tbody");
+    const statusEl = document.getElementById("status");
+    const metaEl = document.getElementById("meta");
+    const clearBtn = document.getElementById("clear-filters");
+    const popover = document.getElementById("popover");
+    const popSearch = document.getElementById("pop-search");
+    const valueList = document.getElementById("value-list");
+    const popNote = document.getElementById("pop-note");
+    const popClear = document.getElementById("pop-clear");
 
-    function activeColumns() {
-      if (mainTab === "summary") return SUMMARY_COLUMNS;
-      return DETAIL_COLUMNS[detailTab] || DETAIL_COLUMNS.account;
+    function isBlank(value) {
+      return value === null || value === undefined || value === "";
     }
 
-    function money(n) {
-      if (n == null || n === "") return "—";
-      return Number(n).toLocaleString(undefined, { style: "currency", currency: "USD", maximumFractionDigits: 0 });
-    }
-
-    function escapeHtml(v) {
-      return String(v ?? "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/"/g, "&quot;");
-    }
-
-    function pill(text, cls) {
-      return `<span class="pill ${cls}">${escapeHtml(text)}</span>`;
-    }
-
-    function cell(col, row) {
-      let v = row[col.key];
-      if (col.key === "planSelected") {
-        const cls = String(row.trialType || v || "").toLowerCase().includes("enterprise")
-          ? "enterprise"
-          : "standard";
-        return `<td>${pill(v || "—", cls)}</td>`;
+    function formatValue(column, value) {
+      if (isBlank(value)) return "";
+      if (column.type === "id" || column.type === "flag") return String(value);
+      if (column.type === "number") {
+        const n = Number(value);
+        if (!Number.isFinite(n)) return String(value);
+        return new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 }).format(n);
       }
-      if (col.render === "status") {
-        const cls = String(v || "").toLowerCase();
-        return `<td>${pill(v || "—", cls)}</td>`;
-      }
-      if (col.render === "type") {
-        const cls = String(v || "").toLowerCase();
-        return `<td>${pill(v || "—", cls)}</td>`;
-      }
-      if (col.render === "yn") {
-        return `<td>${pill(v || "No", v === "Yes" ? "yes" : "no")}</td>`;
-      }
-      if (col.render === "money") {
-        return `<td class="num">${escapeHtml(v ? money(v) : "—")}</td>`;
-      }
-      if (col.render === "limit") {
-        if (v == null || v === "") return `<td class="muted">—</td>`;
-        if (String(v).toLowerCase() === "unlimited") {
-          return `<td>${pill("Unlimited", "yes")}</td>`;
-        }
-        return `<td class="num">${escapeHtml(v)}</td>`;
-      }
-      if (col.render === "num") {
-        return `<td class="num">${v == null || v === "" ? "—" : escapeHtml(v)}</td>`;
-      }
-      if (v == null || v === "") return `<td class="muted">—</td>`;
-      return `<td>${escapeHtml(v)}</td>`;
+      return String(value);
     }
 
-    function fillSelect(id, values) {
-      const el = document.getElementById(id);
-      const keep = el.value;
-      el.innerHTML = '<option value="">All</option>' +
-        values.map((v) => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join("");
-      if ([...el.options].some((o) => o.value === keep)) el.value = keep;
+    function filterLabel(column, value) {
+      const shown = formatValue(column, value);
+      return shown === "" ? BLANK : shown;
     }
 
-    function statusToggleLabel() {
-      if (!selectedStatuses.size) return "All";
-      return [...selectedStatuses].join(", ");
-    }
-
-    function syncStatusToggle() {
-      document.getElementById("f-status-toggle").textContent = statusToggleLabel();
-    }
-
-    function fillStatusMulti(values) {
-      const menu = document.getElementById("f-status-menu");
-      selectedStatuses = new Set([...selectedStatuses].filter((v) => values.includes(v)));
-      menu.innerHTML = values.map((v) => `
-        <label class="ms-option">
-          <input type="checkbox" value="${escapeHtml(v)}" ${selectedStatuses.has(v) ? "checked" : ""} />
-          ${escapeHtml(v)}
-        </label>
-      `).join("");
-      menu.querySelectorAll("input").forEach((input) => {
-        input.addEventListener("change", () => {
-          if (input.checked) selectedStatuses.add(input.value);
-          else selectedStatuses.delete(input.value);
-          syncStatusToggle();
-          onFilterChange();
-        });
-      });
-      syncStatusToggle();
-    }
-
-    function resetStatusMulti() {
-      selectedStatuses = new Set();
-      document.querySelectorAll("#f-status-menu input").forEach((input) => {
-        input.checked = false;
-      });
-      syncStatusToggle();
-    }
-
-    function renderKpis(summary) {
-      const items = [
-        { label: "Trials started", value: summary.totalTrialsStarted, color: "" },
-        { label: "Ongoing", value: summary.ongoingTrials, color: "blue" },
-        { label: "Extended", value: summary.trialsExtended, color: "orange" },
-        { label: "Converted", value: summary.trialsConverted, color: "green" },
-        { label: "Conversion rate", value: `${summary.trialToPaidConversionRate}%`, color: "teal" },
-        { label: "Total MRR", value: money(summary.totalMrrGenerated), color: "pink" },
-        { label: "Avg original duration", value: `${summary.avgOriginalTrialDurationDays}d`, color: "yellow" },
-        { label: "Avg final duration", value: `${summary.avgFinalTrialDurationDays}d`, color: "" },
-        { label: "Avg days to conversion", value: `${summary.avgDaysTrialToConversion}d`, color: "blue" },
-      ];
-      const root = document.getElementById("kpis");
-      root.hidden = false;
-      const note = document.getElementById("limit-type-note");
-      if (note) note.hidden = false;
-      root.innerHTML = items.map((i) => `
-        <div class="kpi-card">
-          <div class="kpi-label">${escapeHtml(i.label)}</div>
-          <div class="kpi-value ${escapeHtml(i.color)}">${escapeHtml(i.value)}</div>
-        </div>
-      `).join("");
-    }
-
-    function pad2(n) {
-      return String(n).padStart(2, "0");
-    }
-
-    function isoDate(d) {
-      return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`;
-    }
-
-    function periodToRange(level, value, bound) {
-      if (!value) return null;
-      if (level === "day") return value;
-
-      if (level === "week") {
-        const m = /^(\d{4})-W(\d{2})$/.exec(value);
-        if (!m) return null;
-        const year = Number(m[1]);
-        const week = Number(m[2]);
-        const jan4 = new Date(Date.UTC(year, 0, 4));
-        const day = jan4.getUTCDay() || 7;
-        const monday = new Date(jan4);
-        monday.setUTCDate(jan4.getUTCDate() - day + 1 + (week - 1) * 7);
-        const sunday = new Date(monday);
-        sunday.setUTCDate(monday.getUTCDate() + 6);
-        return bound === "from" ? isoDate(monday) : isoDate(sunday);
-      }
-
-      if (level === "month") {
-        const m = /^(\d{4})-(\d{2})$/.exec(value);
-        if (!m) return null;
-        const year = Number(m[1]);
-        const month = Number(m[2]);
-        if (bound === "from") return `${year}-${pad2(month)}-01`;
-        const last = new Date(Date.UTC(year, month, 0));
-        return isoDate(last);
-      }
-
-      if (level === "year") {
-        const year = Number(value);
-        if (!Number.isFinite(year)) return null;
-        return bound === "from" ? `${year}-01-01` : `${year}-12-31`;
-      }
-      return null;
-    }
-
-    function syncDateLevelInputs() {
-      const level = document.getElementById("f-date-level").value;
-      const fromEl = document.getElementById("f-start-from");
-      const toEl = document.getElementById("f-start-to");
-
-      const configs = {
-        day: { type: "date", fromLabel: "Trial start from", toLabel: "Trial start to" },
-        week: { type: "week", fromLabel: "Week from", toLabel: "Week to" },
-        month: { type: "month", fromLabel: "Month from", toLabel: "Month to" },
-        year: { type: "number", fromLabel: "Year from", toLabel: "Year to" },
-      };
-      const cfg = configs[level] || configs.day;
-
-      fromEl.type = cfg.type;
-      toEl.type = cfg.type;
-      fromEl.value = "";
-      toEl.value = "";
-
-      if (level === "year") {
-        fromEl.min = "2000";
-        fromEl.max = "2100";
-        fromEl.placeholder = "YYYY";
-        fromEl.step = "1";
-        toEl.min = "2000";
-        toEl.max = "2100";
-        toEl.placeholder = "YYYY";
-        toEl.step = "1";
+    function compareValues(column, a, b, dir) {
+      const av = a[column.key];
+      const bv = b[column.key];
+      const aBlank = isBlank(av);
+      const bBlank = isBlank(bv);
+      if (aBlank && bBlank) return 0;
+      if (aBlank) return 1;
+      if (bBlank) return -1;
+      let cmp = 0;
+      if (column.type === "number" || column.type === "flag" || column.type === "id") {
+        cmp = Number(av) - Number(bv);
       } else {
-        fromEl.removeAttribute("min");
-        fromEl.removeAttribute("max");
-        fromEl.removeAttribute("placeholder");
-        fromEl.removeAttribute("step");
-        toEl.removeAttribute("min");
-        toEl.removeAttribute("max");
-        toEl.removeAttribute("placeholder");
-        toEl.removeAttribute("step");
+        cmp = String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: "base" });
       }
-
-      document.getElementById("lbl-start-from-text").textContent = cfg.fromLabel;
-      document.getElementById("lbl-start-to-text").textContent = cfg.toLabel;
+      return dir === "desc" ? -cmp : cmp;
     }
 
-    function currentFilterKey() {
-      return [
-        document.getElementById("f-date-level").value,
-        document.getElementById("f-start-from").value,
-        document.getElementById("f-start-to").value,
-        document.getElementById("f-type").value,
-        [...selectedStatuses].join(","),
-        document.getElementById("f-extended").value,
-        document.getElementById("f-limit-type").value,
-        document.getElementById("f-ae").value,
-        document.getElementById("f-contract").value,
-        document.getElementById("f-search").value.trim().toLowerCase(),
-        sortKey,
-        sortDir,
-      ].join("|");
+    function columnByKey(key) {
+      return state.columns.find((col) => col.key === key);
     }
 
-    function filteredRecords() {
-      const key = currentFilterKey();
-      if (filteredCache && filterCacheKey === key) return filteredCache;
+    function uniqueEntries(column) {
+      if (state.uniqueCache.has(column.key)) return state.uniqueCache.get(column.key);
+      const seen = new Map();
+      for (const row of state.records) {
+        const label = filterLabel(column, row[column.key]);
+        if (!seen.has(label)) seen.set(label, row[column.key]);
+      }
+      const entries = Array.from(seen, ([label, raw]) => ({ label, raw }));
+      entries.sort((a, b) => {
+        if (a.label === BLANK) return 1;
+        if (b.label === BLANK) return -1;
+        return compareValues(column, { [column.key]: a.raw }, { [column.key]: b.raw }, "asc");
+      });
+      state.uniqueCache.set(column.key, entries);
+      return entries;
+    }
 
-      const level = document.getElementById("f-date-level").value || "day";
-      const fromRaw = document.getElementById("f-start-from").value;
-      const toRaw = document.getElementById("f-start-to").value;
-      const from = periodToRange(level, fromRaw, "from");
-      const to = periodToRange(level, toRaw, "to");
-      const type = document.getElementById("f-type").value;
-      const statuses = [...selectedStatuses];
-      const extended = document.getElementById("f-extended").value;
-      const limitType = document.getElementById("f-limit-type").value;
-      const ae = document.getElementById("f-ae").value;
-      const contract = document.getElementById("f-contract").value;
-      const q = document.getElementById("f-search").value.trim().toLowerCase();
+    function applyView() {
+      let rows = state.records;
+      if (state.filters.size) {
+        rows = rows.filter((row) => {
+          for (const [key, allowed] of state.filters) {
+            const column = columnByKey(key);
+            if (!allowed.has(filterLabel(column, row[key]))) return false;
+          }
+          return true;
+        });
+      }
+      if (state.sort) {
+        const column = columnByKey(state.sort.key);
+        const dir = state.sort.dir;
+        rows = rows.slice().sort((a, b) => compareValues(column, a, b, dir));
+      }
+      state.filtered = rows;
+      clearBtn.disabled = state.filters.size === 0 && !state.sort;
+      renderMeta();
+      renderBody();
+    }
 
-      const rows = DATA.records.filter((r) => {
-        if (from && (!r.trialStartDate || r.trialStartDate < from)) return false;
-        if (to && (!r.trialStartDate || r.trialStartDate > to)) return false;
-        if (type && r.trialType !== type) return false;
-        if (statuses.length && !statuses.includes(r.currentTrialStatus)) return false;
-        if (extended && r.trialExtended !== extended) return false;
-        if (limitType && r.limitType !== limitType) return false;
-        if (ae && r.aeName !== ae) return false;
-        if (contract && r.contractCustomer !== contract) return false;
-        if (q) {
-          const hay = [r.accountName, r.companyName, r.accountUid, r.aeName, r.email, r.opportunityId, r.contractCustomer, r.extendedByName, r.planUpdatedByName]
-            .join(" ")
-            .toLowerCase();
-          if (!hay.includes(q)) return false;
+    function renderMeta() {
+      metaEl.replaceChildren();
+      const shown = state.filtered.length;
+      const total = state.records.length;
+      const count = document.createElement("span");
+      count.textContent =
+        shown === total
+          ? `${shown.toLocaleString("en-US")} rows`
+          : `${shown.toLocaleString("en-US")} of ${total.toLocaleString("en-US")} rows`;
+      metaEl.appendChild(count);
+      if (state.generatedAt) {
+        const when = document.createElement("span");
+        const formatted = new Intl.DateTimeFormat("en-GB", {
+          dateStyle: "medium",
+          timeStyle: "short",
+        }).format(new Date(state.generatedAt));
+        when.textContent = `Updated ${formatted}`;
+        metaEl.appendChild(when);
+      }
+      if (state.demoMode) {
+        const pill = document.createElement("span");
+        pill.className = "pill";
+        pill.textContent = "Sample data";
+        metaEl.appendChild(pill);
+      }
+    }
+
+    function renderHead() {
+      const tr = document.createElement("tr");
+      for (const column of state.columns) {
+        const th = document.createElement("th");
+        const inner = document.createElement("div");
+        inner.className = "th-inner";
+        const label = document.createElement("span");
+        label.className = "th-label";
+        label.textContent = column.label;
+        label.title = column.label;
+        inner.appendChild(label);
+        if (state.sort && state.sort.key === column.key) {
+          const mark = document.createElement("span");
+          mark.className = "sort-mark";
+          mark.textContent = state.sort.dir === "asc" ? "↑" : "↓";
+          inner.appendChild(mark);
         }
-        return true;
-      });
-
-      rows.sort((a, b) => {
-        const av = a[sortKey];
-        const bv = b[sortKey];
-        if (av == null && bv == null) return 0;
-        if (av == null) return 1;
-        if (bv == null) return -1;
-        if (typeof av === "number" && typeof bv === "number") {
-          return sortDir === "asc" ? av - bv : bv - av;
-        }
-        const cmp = String(av).localeCompare(String(bv), undefined, { numeric: true });
-        return sortDir === "asc" ? cmp : -cmp;
-      });
-
-      filteredCache = rows;
-      filterCacheKey = key;
-      return rows;
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "filter-btn";
+        if (state.filters.has(column.key)) btn.classList.add("active");
+        btn.setAttribute("aria-label", `Filter ${column.label}`);
+        btn.dataset.key = column.key;
+        btn.innerHTML =
+          '<svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5h16l-6 7v6l-4 2v-8L4 5z"/></svg>';
+        btn.addEventListener("click", (event) => {
+          event.stopPropagation();
+          togglePopover(column.key, btn);
+        });
+        inner.appendChild(btn);
+        th.appendChild(inner);
+        tr.appendChild(th);
+      }
+      thead.replaceChildren(tr);
     }
 
-    function summarize(rows) {
-      const total = rows.length;
-      const ongoing = rows.filter((r) => r.currentTrialStatus === "Ongoing").length;
-      const extended = rows.filter((r) => r.trialExtended === "Yes").length;
-      const converted = rows.filter((r) => r.convertedToPaid === "Yes");
-      const totalMrr = converted.reduce((s, r) => s + (Number(r.mrrGenerated) || 0), 0);
-      const avg = (arr) => {
-        const v = arr.filter((n) => n != null && Number.isFinite(Number(n))).map(Number);
-        if (!v.length) return 0;
-        return Math.round((v.reduce((a, b) => a + b, 0) / v.length) * 10) / 10;
-      };
-      return {
-        totalTrialsStarted: total,
-        ongoingTrials: ongoing,
-        trialsExtended: extended,
-        trialsConverted: converted.length,
-        trialToPaidConversionRate: total ? Math.round((converted.length / total) * 1000) / 10 : 0,
-        totalMrrGenerated: Math.round(totalMrr * 100) / 100,
-        avgOriginalTrialDurationDays: avg(rows.map((r) => r.originalTrialDurationDays)),
-        avgFinalTrialDurationDays: avg(rows.map((r) => r.currentTotalTrialDurationDays)),
-        avgDaysTrialToConversion: avg(converted.map((r) => r.daysTrialToClosedWon)),
-      };
+    function cellClass(column, value) {
+      const classes = [];
+      if (column.type === "number" || column.type === "flag" || column.type === "id") classes.push("num");
+      if (column.type === "flag" && Number(value) === 1) classes.push("flag-on");
+      if (column.key.endsWith("_difference") && !isBlank(value)) {
+        if (Number(value) > 0) classes.push("pos");
+        else if (Number(value) < 0) classes.push("neg");
+      }
+      return classes.join(" ");
     }
 
-    function pageSlice(rows) {
-      const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
-      if (page > totalPages) page = totalPages;
-      if (page < 1) page = 1;
-      const start = (page - 1) * pageSize;
-      return rows.slice(start, start + pageSize);
-    }
-
-    function bindSortOnce(theadId) {
-      const thead = document.getElementById(theadId);
-      if (thead.dataset.sortBound === "1") return;
-      thead.dataset.sortBound = "1";
-      thead.addEventListener("click", (event) => {
-        const th = event.target.closest("th[data-key]");
-        if (!th) return;
-        const key = th.getAttribute("data-key");
-        if (sortKey === key) sortDir = sortDir === "asc" ? "desc" : "asc";
-        else { sortKey = key; sortDir = "desc"; }
-        page = 1;
-        filteredCache = null;
-        renderTables({ kpis: false });
-      });
-    }
-
-    function paintTable(theadId, tbodyId, columns, rows) {
-      const thead = document.getElementById(theadId);
-      const tbody = document.getElementById(tbodyId);
-      thead.innerHTML = "<tr>" + columns.map((c) => {
-        const mark = c.key === sortKey ? (sortDir === "asc" ? "▲" : "▼") : "";
-        return `<th data-key="${escapeHtml(c.key)}">${escapeHtml(c.label)}<span class="sort">${mark}</span></th>`;
-      }).join("") + "</tr>";
-      bindSortOnce(theadId);
-
+    function renderBody() {
+      const columns = state.columns;
+      const rows = state.filtered;
       if (!rows.length) {
-        tbody.innerHTML = `<tr><td colspan="${columns.length}" class="muted">No trials match these filters.</td></tr>`;
+        tbody.replaceChildren();
+        const tr = document.createElement("tr");
+        const td = document.createElement("td");
+        td.colSpan = Math.max(columns.length, 1);
+        td.className = "empty";
+        td.textContent = state.records.length
+          ? "No rows match the current filters."
+          : "No change rows returned.";
+        tr.appendChild(td);
+        tbody.appendChild(tr);
         return;
       }
-      tbody.innerHTML = rows.map((r) =>
-        "<tr>" + columns.map((c) => cell(c, r)).join("") + "</tr>"
-      ).join("");
+
+      const scrollTop = grid.scrollTop;
+      const viewH = grid.clientHeight || 600;
+      const start = Math.max(0, Math.floor(scrollTop / ROW_H) - 8);
+      const end = Math.min(rows.length, Math.ceil((scrollTop + viewH) / ROW_H) + 8);
+      const frag = document.createDocumentFragment();
+
+      const top = document.createElement("tr");
+      top.className = "spacer";
+      const topTd = document.createElement("td");
+      topTd.colSpan = columns.length;
+      topTd.style.height = `${start * ROW_H}px`;
+      top.appendChild(topTd);
+      frag.appendChild(top);
+
+      for (let i = start; i < end; i += 1) {
+        const row = rows[i];
+        const tr = document.createElement("tr");
+        for (const column of columns) {
+          const td = document.createElement("td");
+          const text = formatValue(column, row[column.key]);
+          td.textContent = text;
+          td.className = cellClass(column, row[column.key]);
+          if (text) td.title = text;
+          tr.appendChild(td);
+        }
+        frag.appendChild(tr);
+      }
+
+      const bottom = document.createElement("tr");
+      bottom.className = "spacer";
+      const bottomTd = document.createElement("td");
+      bottomTd.colSpan = columns.length;
+      bottomTd.style.height = `${(rows.length - end) * ROW_H}px`;
+      bottom.appendChild(bottomTd);
+      frag.appendChild(bottom);
+      tbody.replaceChildren(frag);
     }
 
-    function syncTabVisibility() {
-      document.querySelectorAll("[data-main-tab]").forEach((btn) => {
-        btn.classList.toggle("active", btn.getAttribute("data-main-tab") === mainTab);
+    let scrollQueued = false;
+    grid.addEventListener("scroll", () => {
+      if (scrollQueued) return;
+      scrollQueued = true;
+      requestAnimationFrame(() => {
+        scrollQueued = false;
+        if (!popover.hidden) closePopover(false);
+        renderBody();
       });
-      document.getElementById("panel-summary").classList.toggle("active", mainTab === "summary");
-      document.getElementById("panel-detailed").classList.toggle("active", mainTab === "detailed");
-      document.querySelectorAll("[data-detail-tab]").forEach((btn) => {
-        btn.classList.toggle("active", btn.getAttribute("data-detail-tab") === detailTab);
+    });
+
+    function renderList() {
+      const column = columnByKey(state.draft.key);
+      const query = popSearch.value.trim().toLowerCase();
+      const entries = uniqueEntries(column).filter((entry) =>
+        entry.label.toLowerCase().includes(query)
+      );
+      const shown = entries.slice(0, LIST_CAP);
+      const scroll = valueList.scrollTop;
+      valueList.replaceChildren();
+
+      const allRow = document.createElement("label");
+      allRow.className = "value-row";
+      const allBox = document.createElement("input");
+      allBox.type = "checkbox";
+      const selectedShown = entries.filter((entry) => state.draft.selected.has(entry.label)).length;
+      allBox.checked = entries.length > 0 && selectedShown === entries.length;
+      allBox.indeterminate = selectedShown > 0 && selectedShown < entries.length;
+      allBox.addEventListener("change", () => {
+        for (const entry of entries) {
+          if (allBox.checked) state.draft.selected.add(entry.label);
+          else state.draft.selected.delete(entry.label);
+        }
+        renderList();
       });
+      const allLabel = document.createElement("span");
+      allLabel.textContent = "Select all";
+      allRow.append(allBox, allLabel);
+      valueList.appendChild(allRow);
+
+      for (const entry of shown) {
+        const row = document.createElement("label");
+        row.className = "value-row";
+        const box = document.createElement("input");
+        box.type = "checkbox";
+        box.checked = state.draft.selected.has(entry.label);
+        box.addEventListener("change", () => {
+          if (box.checked) state.draft.selected.add(entry.label);
+          else state.draft.selected.delete(entry.label);
+          renderList();
+        });
+        const span = document.createElement("span");
+        span.textContent = entry.label;
+        span.title = entry.label;
+        row.append(box, span);
+        valueList.appendChild(row);
+      }
+
+      const hidden = entries.length - shown.length;
+      popNote.textContent = hidden > 0
+        ? `Showing ${shown.length.toLocaleString("en-US")} of ${entries.length.toLocaleString("en-US")}. Search to narrow.`
+        : `${entries.length.toLocaleString("en-US")} values`;
+      valueList.scrollTop = scroll;
     }
 
-    function updatePager(total) {
-      const totalPages = Math.max(1, Math.ceil(total / pageSize) || 1);
-      const start = total ? (page - 1) * pageSize + 1 : 0;
-      const end = Math.min(total, page * pageSize);
-      document.getElementById("row-count").textContent =
-        `${total} of ${DATA.records.length} trials`;
-      document.getElementById("page-info").textContent =
-        total ? `${start}–${end} · page ${page}/${totalPages}` : "0–0";
-      document.getElementById("btn-prev").disabled = page <= 1;
-      document.getElementById("btn-next").disabled = page >= totalPages;
+    function positionPopover(anchor) {
+      const rect = anchor.getBoundingClientRect();
+      popover.hidden = false;
+      const width = popover.offsetWidth;
+      const height = popover.offsetHeight;
+      let left = rect.right - width;
+      let top = rect.bottom + 6;
+      if (left < 8) left = 8;
+      if (left + width > window.innerWidth - 8) left = window.innerWidth - width - 8;
+      if (top + height > window.innerHeight - 8) top = Math.max(8, rect.top - height - 6);
+      popover.style.left = `${left}px`;
+      popover.style.top = `${top}px`;
     }
 
-    function renderTables({ kpis = true, summary = true, detailed = true } = {}) {
-      const rows = filteredRecords();
-      if (kpis) renderKpis(summarize(rows));
-      const visible = pageSlice(rows);
-      updatePager(rows.length);
-      syncTabVisibility();
-      if (summary) paintTable("thead-summary", "tbody-summary", SUMMARY_COLUMNS, visible);
-      if (detailed) {
-        paintTable("thead-detailed", "tbody-detailed", activeColumns(), visible);
+    function closePopover(apply) {
+      if (!state.draft) {
+        popover.hidden = true;
+        return;
+      }
+      if (apply) {
+        const column = columnByKey(state.draft.key);
+        const all = uniqueEntries(column);
+        if (state.draft.selected.size === all.length) state.filters.delete(column.key);
+        else state.filters.set(column.key, new Set(state.draft.selected));
+      }
+      state.draft = null;
+      popover.hidden = true;
+      document.querySelectorAll(".filter-btn.open").forEach((btn) => btn.classList.remove("open"));
+      if (apply) {
+        grid.scrollTop = 0;
+        renderHead();
+        applyView();
       }
     }
 
-    const DEFAULT_START_FROM = "2026-01-01";
-
-    function applyDefaultDateFilter() {
-      const level = document.getElementById("f-date-level");
-      if (level) level.value = "day";
-      syncDateLevelInputs();
-      document.getElementById("f-start-from").value = DEFAULT_START_FROM;
-      document.getElementById("f-start-to").value = "";
+    function togglePopover(key, anchor) {
+      if (state.draft && state.draft.key === key) {
+        closePopover(false);
+        return;
+      }
+      closePopover(false);
+      const column = columnByKey(key);
+      const entries = uniqueEntries(column);
+      const existing = state.filters.get(key);
+      const selected = new Set(existing || entries.map((entry) => entry.label));
+      state.draft = { key, selected };
+      popSearch.value = "";
+      popClear.hidden = !state.filters.has(key);
+      anchor.classList.add("open");
+      renderList();
+      positionPopover(anchor);
+      popSearch.focus();
     }
 
-    function onFilterChange() {
-      page = 1;
-      filteredCache = null;
-      renderTables();
+    popSearch.addEventListener("input", renderList);
+    document.getElementById("pop-ok").addEventListener("click", () => closePopover(true));
+    document.getElementById("pop-cancel").addEventListener("click", () => closePopover(false));
+    popClear.addEventListener("click", () => {
+      if (!state.draft) return;
+      state.filters.delete(state.draft.key);
+      state.draft = null;
+      popover.hidden = true;
+      grid.scrollTop = 0;
+      renderHead();
+      applyView();
+    });
+    popover.querySelectorAll(".pop-sort").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        if (!state.draft) return;
+        state.sort = { key: state.draft.key, dir: btn.dataset.dir };
+        state.draft = null;
+        popover.hidden = true;
+        grid.scrollTop = 0;
+        renderHead();
+        applyView();
+      });
+    });
+
+    document.addEventListener("mousedown", (event) => {
+      if (popover.hidden) return;
+      if (popover.contains(event.target)) return;
+      if (event.target.closest(".filter-btn")) return;
+      closePopover(false);
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !popover.hidden) closePopover(false);
+    });
+    window.addEventListener("resize", () => {
+      if (!popover.hidden) closePopover(false);
+      renderBody();
+    });
+
+    clearBtn.addEventListener("click", () => {
+      state.filters.clear();
+      state.sort = null;
+      closePopover(false);
+      grid.scrollTop = 0;
+      renderHead();
+      applyView();
+    });
+
+    function setStatus(message, isError) {
+      statusEl.textContent = message || "";
+      statusEl.classList.toggle("error", Boolean(isError));
     }
 
-    function wireFilters() {
-      [
-        "f-start-from", "f-start-to", "f-type",
-        "f-extended", "f-limit-type", "f-ae", "f-contract",
-      ].forEach((id) => {
-        document.getElementById(id).addEventListener("change", onFilterChange);
-      });
-      document.getElementById("f-status-toggle").addEventListener("click", (event) => {
-        event.stopPropagation();
-        const menu = document.getElementById("f-status-menu");
-        menu.hidden = !menu.hidden;
-      });
-      document.addEventListener("click", (event) => {
-        const wrap = document.getElementById("f-status");
-        if (!wrap.contains(event.target)) {
-          document.getElementById("f-status-menu").hidden = true;
-        }
-      });
-      document.getElementById("f-search").addEventListener("input", () => {
-        clearTimeout(searchTimer);
-        searchTimer = setTimeout(onFilterChange, 200);
-      });
-      document.getElementById("f-date-level").addEventListener("change", () => {
-        syncDateLevelInputs();
-        if (document.getElementById("f-date-level").value === "day") {
-          document.getElementById("f-start-from").value = DEFAULT_START_FROM;
-        }
-        onFilterChange();
-      });
-      document.getElementById("btn-reset").addEventListener("click", () => {
-        applyDefaultDateFilter();
-        document.getElementById("f-type").value = "";
-        resetStatusMulti();
-        document.getElementById("f-extended").value = "";
-        document.getElementById("f-limit-type").value = "";
-        document.getElementById("f-ae").value = "";
-        document.getElementById("f-contract").value = "";
-        document.getElementById("f-search").value = "";
-        onFilterChange();
-      });
-      document.getElementById("btn-refresh").addEventListener("click", () => boot(true));
-      document.getElementById("btn-prev").addEventListener("click", () => {
-        if (page <= 1) return;
-        page -= 1;
-        renderTables({ kpis: false });
-      });
-      document.getElementById("btn-next").addEventListener("click", () => {
-        page += 1;
-        renderTables({ kpis: false });
-      });
-      document.getElementById("f-page-size").addEventListener("change", (event) => {
-        pageSize = Number(event.target.value) || 100;
-        page = 1;
-        renderTables({ kpis: false });
-      });
-
-      document.querySelectorAll("[data-main-tab]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const next = btn.getAttribute("data-main-tab");
-          if (next === mainTab) return;
-          mainTab = next;
-          syncTabVisibility();
-        });
-      });
-      document.querySelectorAll("[data-detail-tab]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const next = btn.getAttribute("data-detail-tab");
-          if (next === detailTab) return;
-          detailTab = next;
-          const cols = DETAIL_COLUMNS[detailTab] || [];
-          if (cols.length && !cols.some((c) => c.key === sortKey)) {
-            sortKey = cols[0].key;
-            sortDir = "desc";
-            page = 1;
-            filteredCache = null;
-            renderTables({ kpis: false, summary: false });
-            return;
-          }
-          syncTabVisibility();
-          renderTables({ kpis: false, summary: false });
-        });
-      });
-    }
-
-    function renderShell() {
-      fillSelect("f-type", DATA.filters.trialTypes || []);
-      fillStatusMulti(DATA.filters.trialStatuses || []);
-      fillSelect("f-ae", DATA.filters.aeNames || []);
-
-      const notes = DATA.fieldNotes || {};
-      document.getElementById("field-notes").innerHTML =
-        "<ul>" +
-        Object.entries(notes).map(([k, v]) =>
-          `<li><strong>${escapeHtml(k)}</strong>: ${escapeHtml(v)}</li>`
-        ).join("") +
-        "</ul>";
-
-      document.getElementById("filters-panel").hidden = false;
-      document.getElementById("table-panel").hidden = false;
-      applyDefaultDateFilter();
-      page = 1;
-      filteredCache = null;
-      renderTables();
-    }
-
-    async function boot(forceRefresh) {
-      const status = document.getElementById("status");
-      status.hidden = false;
-      status.className = "";
-      status.textContent = forceRefresh ? "Refreshing…" : "Loading…";
+    async function load() {
+      setStatus("Loading…", false);
       try {
-        const url = forceRefresh ? "/api/data?refresh=1" : "/api/data";
-        const res = await fetch(url, { credentials: "same-origin" });
-        if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
-          throw new Error(body.error || `API ${res.status}`);
-        }
-        DATA = await res.json();
-        status.hidden = true;
-        status.textContent = "";
-        renderShell();
+        const res = await fetch("/api/data", { headers: { Accept: "application/json" } });
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || "Failed to load dashboard data.");
+        state.columns = Array.isArray(body.columns) ? body.columns : [];
+        state.records = Array.isArray(body.records) ? body.records : [];
+        state.demoMode = Boolean(body.demoMode);
+        state.generatedAt = body.generatedAt || null;
+        state.filters.clear();
+        state.sort = null;
+        state.uniqueCache.clear();
+        setStatus("", false);
+        renderHead();
+        applyView();
       } catch (err) {
-        status.hidden = false;
-        status.className = "error";
-        status.textContent = String(err.message || err);
+        setStatus(err.message || "Failed to load dashboard data.", true);
       }
     }
 
-    wireFilters();
-    boot(false);
+    load();
   </script>
 </body>
 </html>

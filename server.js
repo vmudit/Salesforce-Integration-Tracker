@@ -139,7 +139,7 @@ app.use((req, res, next) => {
   if (!AUTH_ENABLED) return next();
   if (hasValidBasic(req) || hasValidToken(req)) return next();
 
-  res.setHeader("WWW-Authenticate", 'Basic realm="Trial Extension", charset="UTF-8"');
+  res.setHeader("WWW-Authenticate", 'Basic realm="Salesforce Integration Tracker", charset="UTF-8"');
   return res.status(401).json({ error: "Unauthorized" });
 });
 
@@ -210,7 +210,7 @@ app.get("/api/data", async (req, res) => {
 });
 
 function sendPayload(res, body) {
-  // Contains named customer revenue: keep it out of shared and disk caches.
+  // Company plan and integration counts: keep them out of shared and disk caches.
   res.setHeader("Cache-Control", "private, no-store");
   res.type("application/json").send(body);
 }
@@ -260,7 +260,7 @@ app.listen(PORT, HOST, () => {
   if (!AUTH_ENABLED) {
     console.warn(
       "WARNING: DASHBOARD_USER / DASHBOARD_PASSWORD are not set. This dashboard " +
-        "exposes named customer accounts and their revenue history, and is currently " +
+        "exposes customer company ids, plans, and Salesforce integration counts, and is currently " +
         "readable by anyone who can reach this URL."
     );
   }

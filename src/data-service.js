@@ -22,7 +22,7 @@ function notConfigured() {
 }
 
 /**
- * Runs the extract and builds the dashboard payload.
+ * Runs the Salesforce tracker extract and builds the table payload.
  * Throws when the self-check fails so a bad payload is never cached or served.
  *
  * When DEMO_MODE=1, returns synthetic rows (no BigQuery call) for local UI review.

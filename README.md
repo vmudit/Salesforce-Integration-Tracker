@@ -1,6 +1,6 @@
-# Trial Extension Dashboard
+# Salesforce Integration Tracker
 
-Account-level visibility into every trial — original setup, extensions/limit overrides, status, and post-conversion MRR.
+One row per company per day where the plan, active users, or Salesforce user ids changed. The page is a table with a filter on each column.
 
 Deployable app lives at the **repository root** (Express + BigQuery + `public/index.html`).
 
@@ -21,6 +21,4 @@ npm install
 npm run dev            # http://localhost:3000
 ```
 
-## Spec
-
-See `project_input.md` and `context.md`. `copy_folder/` is the generic BigQuery dashboard scaffold used as a reference.
+`copy_folder/` is an older dashboard scaffold and is not served.

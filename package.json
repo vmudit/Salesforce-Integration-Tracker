@@ -1,8 +1,8 @@
 {
-  "name": "trial-extension-dashboard",
+  "name": "salesforce-integration-tracker",
   "version": "1.0.0",
   "private": true,
-  "description": "Trial Extension dashboard — Express + BigQuery + single-file HTML",
+  "description": "Salesforce Integration Tracker — Express + BigQuery + single-file HTML",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

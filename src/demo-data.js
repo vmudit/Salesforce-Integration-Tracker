@@ -1,386 +1,137 @@
 /**
- * Synthetic rows shaped like the BigQuery extract — for local UI review
- * when DEMO_MODE=1 (no warehouse credentials required).
- *
- * All trials start on or after 2026-01-01 so the default dashboard window
- * (from 1 Jan 2026) shows a coherent set.
+ * Synthetic tracker rows for local UI review when DEMO_MODE=1.
+ * Shape matches the extract: change rows only, and the live Salesforce
+ * userid measures are filled only on the latest date.
  */
 function buildDemoRows() {
-  const iso = (d) => d.toISOString().slice(0, 10);
-  const parse = (yyyyMmDd) => {
-    const [y, m, d] = yyyyMmDd.split("-").map(Number);
-    return new Date(Date.UTC(y, m - 1, d));
-  };
-  const daysFrom = (base, n) => {
-    const d = new Date(base);
-    d.setUTCDate(d.getUTCDate() + n);
-    return d;
-  };
+  const latest = "2026-11-11";
 
-  const aes = ["", "", "", "", ""];
-
-  const seeds = [
+  const companies = [
     {
-      email: "ops@acme.io",
-      companyid: "1001",
-      opportunity_id: "OPP-1001",
-      startDate: "2026-08-07",
-      duration: 14,
-      type: "Enterprise Trial",
-      returning: false,
-      ae: aes[0],
-      override: false,
-      extended: false,
-      converted: false,
-      status: "trialing",
-      mrr: null,
-      usageLimit: null,
-    },
-    {
-      email: "founder@brightly.co",
-      companyid: "1002",
-      opportunity_id: "OPP-1002",
-      startDate: "2026-07-23",
-      duration: 14,
-      type: "Enterprise Trial",
-      returning: false,
-      ae: aes[1],
-      override: true,
-      overrideOnDay: 7,
-      extended: true,
-      extendOnDay: 7,
-      extraDays: 7,
-      converted: true,
-      convertOnDay: 18,
+      companyid: 10421,
       status: "active",
-      mrr: 890,
-      usageLimit: "Unlimited",
+      from: "Pro",
+      to: "Proplus",
+      users: [8, 9, 9, 11],
+      sf: [2, 2, 3, 3],
+      prevSf: 2,
+      latestAll: 4,
+      latestActive: 3,
+      latestInactive: 1,
     },
     {
-      email: "team@northstar.app",
-      companyid: "1003",
-      opportunity_id: "OPP-1003",
-      startDate: "2026-07-03",
-      duration: 7,
-      type: "Standard Trial",
-      returning: true,
-      ae: "",
-      override: false,
-      extended: false,
-      converted: false,
+      companyid: 11008,
+      status: "active",
+      from: "Essential",
+      to: "Essential",
+      users: [4, 4, 6, 6],
+      sf: [1, 1, 1, 1],
+      prevSf: 1,
+      latestAll: 2,
+      latestActive: 1,
+      latestInactive: 1,
+    },
+    {
+      companyid: 11880,
+      status: "active",
+      from: "Proplus",
+      to: "Business",
+      users: [20, 20, 18, 18],
+      sf: [6, 6, 6, 5],
+      prevSf: 6,
+      latestAll: 7,
+      latestActive: 5,
+      latestInactive: 2,
+    },
+    {
+      companyid: 12114,
+      status: "trialing",
+      from: "Pro",
+      to: "Pro",
+      users: [2, 3, 3, 5],
+      sf: [1, 1, 1, 1],
+      prevSf: 0,
+      latestAll: 1,
+      latestActive: 1,
+      latestInactive: 0,
+    },
+    {
+      companyid: 13002,
+      status: "past_due",
+      from: "Business",
+      to: "Pro",
+      users: [15, 15, 15, 14],
+      sf: [4, 4, 4, 4],
+      prevSf: 4,
+      latestAll: 4,
+      latestActive: 4,
+      latestInactive: 0,
+    },
+    {
+      companyid: 14077,
       status: "canceled",
-      mrr: null,
-      usageLimit: null,
-    },
-    {
-      email: "hello@lumenhq.com",
-      companyid: "1004",
-      opportunity_id: "OPP-1004",
-      startDate: "2026-07-31",
-      duration: 21,
-      type: "Enterprise Trial",
-      returning: false,
-      ae: aes[2],
-      override: true,
-      overrideOnDay: 10,
-      extended: true,
-      extendOnDay: 10,
-      extraDays: 14,
-      converted: false,
-      status: "trialing",
-      mrr: null,
-      usageLimit: "Unlimited",
-    },
-    {
-      email: "finance@cascade.io",
-      companyid: "1005",
-      opportunity_id: "OPP-1005",
-      startDate: "2026-06-13",
-      duration: 14,
-      type: "Standard Trial",
-      returning: false,
-      ae: aes[3],
-      override: false,
-      extended: false,
-      converted: true,
-      convertOnDay: 12,
-      status: "active",
-      mrr: 249,
-      usageLimit: null,
-    },
-    {
-      email: "ceo@orbitdesk.com",
-      companyid: "1006",
-      opportunity_id: "OPP-1006",
-      startDate: "2026-05-14",
-      duration: 14,
-      type: "Enterprise Trial",
-      returning: true,
-      ae: aes[0],
-      override: false,
-      extended: false,
-      converted: false,
-      status: "unpaid",
-      mrr: null,
-      usageLimit: null,
-    },
-    {
-      email: "growth@pebble.so",
-      companyid: "1007",
-      opportunity_id: "OPP-1007",
-      startDate: "2026-08-09",
-      duration: 14,
-      type: "Standard Trial",
-      returning: false,
-      ae: "",
-      override: false,
-      extended: false,
-      converted: false,
-      status: "trialing",
-      mrr: null,
-      usageLimit: null,
-    },
-    {
-      email: "vp@harborline.com",
-      companyid: "1008",
-      opportunity_id: "OPP-1008",
-      startDate: "2026-07-18",
-      duration: 30,
-      type: "Enterprise Trial",
-      returning: false,
-      ae: aes[1],
-      override: true,
-      overrideOnDay: 14,
-      extended: true,
-      extendOnDay: 14,
-      extraDays: 10,
-      converted: true,
-      convertOnDay: 28,
-      status: "active",
-      mrr: 1450,
-      usageLimit: "Unlimited",
-    },
-    {
-      email: "admin@quillmail.io",
-      companyid: "1009",
-      opportunity_id: "OPP-1009",
-      startDate: "2026-07-28",
-      duration: 7,
-      type: "Standard Trial",
-      returning: true,
-      ae: aes[2],
-      override: false,
-      extended: false,
-      converted: false,
-      status: null,
-      mrr: null,
-      usageLimit: null,
-    },
-    {
-      email: "sales@vertexlabs.ai",
-      companyid: "1010",
-      opportunity_id: "OPP-1010",
-      startDate: "2026-08-04",
-      duration: 14,
-      type: "Enterprise Trial",
-      returning: false,
-      ae: aes[3],
-      override: false,
-      extended: false,
-      converted: false,
-      status: "trialing",
-      mrr: null,
-      usageLimit: null,
-    },
-    {
-      email: "cto@redwood.dev",
-      companyid: "1011",
-      opportunity_id: "OPP-1011",
-      startDate: "2026-06-28",
-      duration: 14,
-      type: "Enterprise Trial",
-      returning: false,
-      ae: aes[0],
-      override: true,
-      overrideOnDay: 5,
-      extended: false,
-      converted: false,
-      status: null,
-      mrr: null,
-      usageLimit: "Unlimited",
-    },
-    {
-      email: "hello@mintpath.com",
-      companyid: "1012",
-      opportunity_id: "OPP-1012",
-      startDate: "2026-06-03",
-      duration: 14,
-      type: "Standard Trial",
-      returning: false,
-      ae: "",
-      override: false,
-      extended: false,
-      converted: true,
-      convertOnDay: 10,
-      status: "active",
-      mrr: 99,
-      usageLimit: null,
-    },
-    // Repeat trial for Acme — earlier instance in Jan 2026
-    {
-      email: "ops@acme.io",
-      companyid: "1001",
-      opportunity_id: "OPP-1001-B",
-      startDate: "2026-01-15",
-      duration: 14,
-      type: "Enterprise Trial",
-      returning: true,
-      ae: aes[0],
-      override: false,
-      extended: true,
-      extendOnDay: 10,
-      extraDays: 7,
-      converted: true,
-      convertOnDay: 20,
-      status: "active",
-      mrr: 1200,
-      usageLimit: null,
-    },
-    // Cascade first trial in January, later converted trial above
-    {
-      email: "finance@cascade.io",
-      companyid: "1005",
-      opportunity_id: "OPP-1005-A",
-      startDate: "2026-01-08",
-      duration: 14,
-      type: "Standard Trial",
-      returning: false,
-      ae: aes[3],
-      override: false,
-      extended: false,
-      converted: false,
-      status: null,
-      mrr: null,
-      usageLimit: null,
-    },
-    {
-      email: "hello@northwind.co",
-      companyid: "1013",
-      opportunity_id: "OPP-1013",
-      startDate: "2026-01-02",
-      duration: 14,
-      type: "Enterprise Trial",
-      returning: false,
-      ae: aes[1],
-      override: false,
-      extended: false,
-      converted: true,
-      convertOnDay: 14,
-      status: "active",
-      mrr: 520,
-      usageLimit: null,
-    },
-    {
-      email: "ops@brightpath.io",
-      companyid: "1014",
-      opportunity_id: "OPP-1014",
-      startDate: "2026-02-10",
-      duration: 21,
-      type: "Standard Trial",
-      returning: false,
-      ae: "",
-      override: false,
-      extended: true,
-      extendOnDay: 14,
-      extraDays: 7,
-      converted: false,
-      status: null,
-      mrr: null,
-      usageLimit: null,
-    },
-    {
-      email: "team@cobalt.ai",
-      companyid: "1015",
-      opportunity_id: "OPP-1015",
-      startDate: "2026-03-05",
-      duration: 14,
-      type: "Enterprise Trial",
-      returning: false,
-      ae: aes[2],
-      override: true,
-      overrideOnDay: 3,
-      extended: false,
-      converted: true,
-      convertOnDay: 16,
-      status: "active",
-      mrr: 2100,
-      usageLimit: "Unlimited",
-    },
-    {
-      email: "growth@maplehq.com",
-      companyid: "1016",
-      opportunity_id: "OPP-1016",
-      startDate: "2026-04-20",
-      duration: 14,
-      type: "Standard Trial",
-      returning: true,
-      ae: aes[3],
-      override: false,
-      extended: false,
-      converted: false,
-      status: "canceled",
-      mrr: null,
-      usageLimit: null,
+      from: "Proplus",
+      to: "Proplus",
+      users: [7, 7, 1, 0],
+      sf: [3, 3, 0, 0],
+      prevSf: 2,
+      latestAll: 2,
+      latestActive: 0,
+      latestInactive: 2,
     },
   ];
 
-  return seeds.map((s) => {
-    const trialStart = parse(s.startDate);
-    const trialEnd = daysFrom(trialStart, s.duration);
-    const customerTime = s.converted ? daysFrom(trialStart, s.convertOnDay) : null;
-    const overrideDate =
-      s.override && s.overrideOnDay != null ? daysFrom(trialStart, s.overrideOnDay) : null;
-    const extensionDate =
-      s.extended && s.extendOnDay != null ? daysFrom(trialStart, s.extendOnDay) : null;
-    const extendedEnd =
-      s.extended && s.extraDays != null ? daysFrom(trialEnd, s.extraDays) : null;
+  const dates = ["2026-11-08", "2026-11-09", "2026-11-10", latest];
+  const rows = [];
 
-    return {
-      email: s.email,
-      companyid: s.companyid,
-      opportunity_id: s.opportunity_id,
-      TrialTime: { value: trialStart.toISOString() },
-      TrialEndTime: { value: trialEnd.toISOString() },
-      ExtendedTrialEndTime: extendedEnd ? { value: extendedEnd.toISOString() } : null,
-      extension_date: extensionDate ? { value: iso(extensionDate) } : null,
-      trial_extended_flag: s.extended ? 1 : 0,
-      additional_days_provided: s.extended ? s.extraDays : null,
-      usage_limit_applied: s.usageLimit,
-      property_returning_trial_user_flag: s.returning ? "true" : "false",
-      property_trial_reactivation: s.returning ? "yes" : null,
-      property_c_plan_type: s.type,
-      subscription_plan: s.type,
-      property_sales_team_owner: s.ae,
-      owner_id: s.ae ? "SF-" + s.companyid : null,
-      sfdc_owner_name: s.ae || null,
-      ae_owner_name: s.ae || null,
-      opp_created_owner_profile: s.ae ? "AE" : "SDR",
-      opp_created_owner_profile_new: s.ae ? "AE" : "SDR",
-      trial_days_given: s.duration,
-      trial_to_cust_days: s.converted ? s.convertOnDay : null,
-      CustomerTime: customerTime ? { value: customerTime.toISOString() } : null,
-      land_mrr: s.mrr,
-      subscription_mrr: s.mrr,
-      subscription_status: s.status,
-      closed_by_motion: s.converted ? "AE-led" : null,
-      limit_overriden_flag: s.override ? 1 : null,
-      overriden_date: overrideDate ? { value: iso(overrideDate) } : null,
-      overriden_by_name: s.override ? (s.ae || "Ops Admin") : null,
-      is_contract: Number(s.companyid) % 2 === 0,
-      latest_extension_at_date: extensionDate ? { value: iso(extensionDate) } : null,
-      extended_by_name: s.extended ? (s.ae || "Ops Admin") : null,
-    };
+  for (const company of companies) {
+    for (let i = 1; i < dates.length; i += 1) {
+      const date = dates[i];
+      const isLatest = date === latest;
+      const previousUsers = company.users[i - 1];
+      const currentUsers = company.users[i];
+      const userDiff = currentUsers - previousUsers;
+      const previousPlan = i === 1 ? company.from : company.to;
+      const currentPlan = company.to;
+      const planChanged = previousPlan !== currentPlan ? 1 : 0;
+      const sfDiff = isLatest ? company.latestActive - company.prevSf : null;
+
+      const row = {
+        date,
+        companyid: company.companyid,
+        company_status: company.status,
+        previous_day_plan: previousPlan,
+        current_day_plan: currentPlan,
+        plan_change_flag: planChanged,
+        current_active_users: currentUsers,
+        previous_day_active_users: previousUsers,
+        active_users_difference: userDiff,
+        active_users_change_flag: userDiff !== 0 ? 1 : 0,
+        current_active_salesforce_integrations:
+          company.status.toUpperCase() === "CANCELED" ? 0 : company.sf[i],
+        previous_day_active_sfuserids: isLatest ? company.prevSf : null,
+        active_sfuserids_difference: sfDiff,
+        active_sfuserids_change_flag: sfDiff != null && sfDiff !== 0 ? 1 : 0,
+        latest_integrations: isLatest ? company.latestAll : null,
+        latest_active_users_integrations: isLatest ? company.latestActive : null,
+        latest_inactive_users_integrations: isLatest ? company.latestInactive : null,
+      };
+
+      if (
+        row.plan_change_flag === 1 ||
+        row.active_users_change_flag === 1 ||
+        row.active_sfuserids_change_flag === 1
+      ) {
+        rows.push(row);
+      }
+    }
+  }
+
+  rows.sort((a, b) => {
+    if (a.date !== b.date) return a.date < b.date ? 1 : -1;
+    return a.companyid - b.companyid;
   });
+  return rows;
 }
 
 module.exports = { buildDemoRows };

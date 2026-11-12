@@ -1,190 +1,442 @@
--- Source of truth for the Trial Extension extract.
--- src/queries.js reads this file at runtime:
---   • {{FUNNEL}} {{FUM}} {{UPGRADES}} {{SFDC}} {{LICENCE}} {{TRIAL_EXT}} {{ADMINPANEL}} → validated FQNs
---   • @rangeStart / @previousPlanId / @changedToPlanId stay bound params (not literals)
+-- Salesforce Integration Tracker.
+-- src/queries.js reads this file and replaces the table tokens below with
+-- project-qualified names (BQ cannot bind table identifiers).
 --
--- Console paste: replace tokens with `project.dataset.table` and declare the @params
--- (or inline 2026-01-01 / 1194 / 100).
+-- One row per companyid per date, through yesterday.
+-- fact_user_master Day grain stops at CURRENT_DATE() - 1.
+-- On that latest row, current_* plan and users are CURRENT_DATE() - 1
+-- and previous_* plan and users are CURRENT_DATE() - 2.
+-- Salesforce userid counts are the latest row per userid, not a daily spell:
+--   current = live jclive.salesforce_info
+--   previous = jclive.salesforce_info as of CURRENT_TIMESTAMP() - 1 day
+-- Those counts are attached only to the latest date row.
+-- latest_active_users_integrations is the live status = 0 count.
+-- latest_inactive_users_integrations is the live status = -3 count.
+-- previous_day_active_sfuserids is the status = 0 count on the yesterday snapshot.
+-- Result is limited to companies with at least one latest status = 0
+-- sfuserid on the yesterday snapshot.
 --
--- Defaults (override via BQ_*_DATASET / BQ_*_TABLE env):
---   {{FUNNEL}}      hubspot_migration.reporting_user_funnel_new_hs
---   {{FUM}}         analytics_reporting.fact_user_master
---   {{UPGRADES}}    justcall.upgradeDowngradeLogs
---   {{SFDC}}        analytics_seed.hubspot_sfdc_user_role_hs
---   {{LICENCE}}     analytics_intermediate.int_licence_final_mrr
---   {{TRIAL_EXT}}   jc_mastermind.trial_extension
---   {{ADMINPANEL}}  justcall.adminpanel
---
--- Source query (stakeholder):
---   funnel + FUM (cust status as of current_date()-1)
---   + upgradeDowngradeLogs (1194 → 100 = Custom enterprise limit) + adminpanel.overriden_by_name
---   + sfdc_user_role_hs (SDR/BDR/PS/AE) on owner_id
---   + int_licence_final_mrr (is_contract as of current_date()-1, companyid = userid)
---   + trial_extension (latest extended_at per companyid) + adminpanel.extended_by_name
---
--- AE name precedence:
---   ae_owner_name → smp1.name → property_sales_team_owner → 'Self Serve'
--- plan_selected_new:
---   is_contract true  → COALESCE(property_c_plan_type, subscription_plan)
---   is_contract false → COALESCE(changeplan, property_c_plan_type, subscription_plan)
+-- Defaults (override via BQ_*_DATASET / BQ_*_TABLE):
+--   {{FACT_USER_MASTER}}   analytics_reporting.fact_user_master
+--   {{JUSTCALL_USERS}}     analytics_intermediate.justcall_users
+--   {{INTERNAL_EMAILS}}    analytics_intermediate.int_internal_emails
+--   {{INT_LOGS_STATUS}}    justcall.int_logs_status
+--   {{INT_CONNECT_JCLIVE}} justcall.int_connect_jclive
+--   {{SALESFORCE_INFO}}    jclive.salesforce_info
 
-WITH cust_status AS (
-  SELECT DISTINCT
-    company_id,
-    stripe_subscription_status,
-    land_mrr,
-    closed_by_motion
-  FROM {{FUM}}
-  WHERE date_level = 'Day'
-    AND date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
-    AND stripe_subscription_status IS NOT NULL
-),
-
-plan_upgrade_flag AS (
-  SELECT
-    ud.companyid,
-    ud.previousPlan,
-    ud.changedToPlan,
-    ud.previousPlanId,
-    ud.changedToPlanId,
-    DATE(ud.insertedAt) AS overriden_date,
-    1 AS limit_overriden_flag,
-    a.name AS overriden_by_name
-  FROM {{UPGRADES}} ud
-  LEFT JOIN (
-    SELECT DISTINCT id, name
-    FROM {{ADMINPANEL}}
-  ) a
-    ON CAST(ud.mmadminid AS STRING) = CAST(a.id AS STRING)
-  WHERE ud.previousPlanId = @previousPlanId
-    AND ud.changedToPlanId = @changedToPlanId
-  QUALIFY ROW_NUMBER() OVER (PARTITION BY ud.companyid ORDER BY ud.insertedAt) = 1
-),
-
-contract_flag AS (
-  SELECT DISTINCT
-    userid,
-    is_contract
-  FROM {{LICENCE}}
-  WHERE date_level = 'Day'
-    AND mrr_date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
-),
-
-extended_at_date AS (
-  SELECT
-    te.companyid,
-    te.extended_by,
-    a.name AS extended_by_name,
-    DATE(te.extended_at) AS latest_extension_at_date
-  FROM {{TRIAL_EXT}} te
-  LEFT JOIN (
-    SELECT DISTINCT id, name
-    FROM {{ADMINPANEL}}
-  ) a
-    ON CAST(te.extended_by AS STRING) = CAST(a.id AS STRING)
-  QUALIFY ROW_NUMBER() OVER (PARTITION BY te.companyid ORDER BY te.extended_at DESC) = 1
-),
-
-latest_changeplan AS (
-  SELECT
-    companyid,
-    changedToPlan AS changeplan
-  FROM (
-    SELECT *
-    FROM {{UPGRADES}}
-    QUALIFY ROW_NUMBER() OVER (PARTITION BY companyid ORDER BY insertedAt DESC) = 1
-  )
-  WHERE changedToPlanId IN (@previousPlanId, @changedToPlanId)
-),
-
-base AS (
-  SELECT DISTINCT
-    a.email,
-    a.companyid,
-    a.opportunity_id,
-    a.TrialTime,
-    a.TrialEndTime,
-    a.property_returning_trial_user_flag,
-    a.property_trial_reactivation,
-    a.property_c_plan_type,
-    a.subscription_plan,
-    a.property_sales_team_owner,
-    a.owner_id,
-    smp1.name AS sfdc_owner_name,
-    a.ae_owner_name,
-    a.opp_created_owner_profile,
-    a.opp_created_owner_profile_new,
-    DATE_DIFF(DATE(a.TrialEndTime), DATE(a.TrialTime), DAY) AS trial_days_given,
-    DATE_DIFF(DATE(a.CustomerTime), DATE(a.TrialTime), DAY) AS trial_to_cust_days,
-    a.CustomerTime,
-    COALESCE(a.land_mrr, cs.land_mrr) AS land_mrr,
-    a.subscription_mrr,
-    cs.stripe_subscription_status AS subscription_status,
-    cs.closed_by_motion,
-    pu.limit_overriden_flag,
-    pu.overriden_date,
-    pu.overriden_by_name,
-    COALESCE(cf.is_contract, false) AS is_contract,
-    ext.latest_extension_at_date,
-    ext.extended_by_name,
-    lp.changeplan,
-    CASE
-      WHEN COALESCE(cf.is_contract, false) THEN
-        COALESCE(
-          NULLIF(TRIM(CAST(a.property_c_plan_type AS STRING)), ''),
-          NULLIF(TRIM(CAST(a.subscription_plan AS STRING)), '')
-        )
-      ELSE COALESCE(
-        NULLIF(TRIM(CAST(lp.changeplan AS STRING)), ''),
-        NULLIF(TRIM(CAST(a.property_c_plan_type AS STRING)), ''),
-        NULLIF(TRIM(CAST(a.subscription_plan AS STRING)), '')
-      )
-    END AS plan_selected_new
-  FROM {{FUNNEL}} a
-  LEFT JOIN (
-    SELECT *
-    FROM {{SFDC}}
-    WHERE profile_name_c IN ('SDR', 'BDR', 'PS', 'AE')
-  ) smp1
-    ON CAST(smp1.id AS STRING) = CAST(a.owner_id AS STRING)
-  LEFT JOIN cust_status cs
-    ON a.companyid = cs.company_id
-  LEFT JOIN plan_upgrade_flag pu
-    ON a.companyid = pu.companyid
-  LEFT JOIN contract_flag cf
-    ON CAST(a.companyid AS STRING) = CAST(cf.userid AS STRING)
-  LEFT JOIN extended_at_date ext
-    ON CAST(a.companyid AS STRING) = CAST(ext.companyid AS STRING)
-  LEFT JOIN latest_changeplan lp
-    ON CAST(a.companyid AS STRING) = CAST(lp.companyid AS STRING)
-  WHERE a.TrialTime IS NOT NULL
-    AND DATE(a.TrialTime) >= @rangeStart
+WITH list_of_dates AS (
+  SELECT date
+  FROM UNNEST(GENERATE_DATE_ARRAY(
+    DATE '2024-11-01',
+    DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+  )) AS date
 )
 
-SELECT
-  * EXCEPT (ae_owner_name),
-  COALESCE(
-    NULLIF(TRIM(CAST(ae_owner_name AS STRING)), ''),
-    NULLIF(TRIM(CAST(sfdc_owner_name AS STRING)), ''),
-    NULLIF(TRIM(CAST(property_sales_team_owner AS STRING)), ''),
-    'Self Serve'
-  ) AS ae_owner_name
-FROM (
-  SELECT *
-  FROM base
+, plan_status AS (
+  SELECT
+    CAST(company_id AS INT64) AS companyid,
+    date,
+    CASE
+      WHEN subscription_plan_type = 'ProPlus' THEN 'Proplus'
+      ELSE subscription_plan_type
+    END AS plan_type,
+    stripe_subscription_status AS company_status
+  FROM {{FACT_USER_MASTER}}
+  WHERE date_level = 'Day'
+    AND date BETWEEN DATE '2024-10-31' AND DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+    AND company_id IS NOT NULL
   QUALIFY ROW_NUMBER() OVER (
-    PARTITION BY COALESCE(CAST(companyid AS STRING), CONCAT('email:', CAST(email AS STRING)))
-    ORDER BY
-      CASE WHEN CustomerTime IS NOT NULL THEN 0 ELSE 1 END,
-      TrialTime DESC,
-      CASE
-        WHEN NULLIF(TRIM(CAST(ae_owner_name AS STRING)), '') IS NOT NULL THEN 0
-        WHEN NULLIF(TRIM(CAST(sfdc_owner_name AS STRING)), '') IS NOT NULL THEN 0
-        WHEN NULLIF(TRIM(CAST(property_sales_team_owner AS STRING)), '') IS NOT NULL THEN 0
-        ELSE 1
-      END,
-      email
+    PARTITION BY company_id, date
+    ORDER BY company_id
   ) = 1
 )
-ORDER BY TrialTime DESC, email
-;
+
+, companies AS (
+  SELECT
+    companyid,
+    MIN(date) AS first_date
+  FROM plan_status
+  WHERE date >= DATE '2024-11-01'
+  GROUP BY 1
+)
+
+, company_dates AS (
+  SELECT
+    c.companyid,
+    d.date
+  FROM companies c
+  INNER JOIN list_of_dates d
+    ON d.date >= c.first_date
+)
+
+, jc_users_clean AS (
+  SELECT
+    CAST(userid AS INT64) AS userid,
+    CAST(companyid AS INT64) AS companyid,
+    status,
+    inserted_at_time,
+    LOWER(TRIM(SPLIT(SPLIT(SPLIT(SPLIT(SPLIT(SPLIT(SPLIT(SPLIT(SPLIT(SPLIT(SPLIT(SPLIT(SPLIT(SPLIT(
+      email,
+      '_removed2')[OFFSET(0)],
+      '_removed')[OFFSET(0)],
+      '__toberemoved')[OFFSET(0)],
+      '-cancel')[OFFSET(0)],
+      '_cancel')[OFFSET(0)],
+      '_remove')[OFFSET(0)],
+      '_remmoved')[OFFSET(0)],
+      '_rem')[OFFSET(0)],
+      '-rem')[OFFSET(0)],
+      '-cancelled')[OFFSET(0)],
+      '_cancelled')[OFFSET(0)],
+      '_tobedelete')[OFFSET(0)],
+      '_delete')[OFFSET(0)],
+      '_duplicate')[OFFSET(0)])) AS email
+  FROM {{JUSTCALL_USERS}}
+  WHERE email IS NOT NULL
+    AND DATE(inserted_at_time) >= DATE '2024-10-31'
+    AND DATE(inserted_at_time) <= DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+)
+
+, jc_users_kept AS (
+  SELECT u.*
+  FROM jc_users_clean u
+  LEFT JOIN {{INTERNAL_EMAILS}} ie
+    ON u.email = ie.email
+   AND ie.email IS NOT NULL
+  WHERE u.email IS NOT NULL
+    AND TRIM(u.email) != ''
+    AND ie.email IS NULL
+)
+
+, jc_users_daily AS (
+  SELECT
+    DATE(inserted_at_time) AS snapshot_date,
+    userid,
+    companyid,
+    status
+  FROM jc_users_kept
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY userid, DATE(inserted_at_time)
+    ORDER BY inserted_at_time DESC
+  ) = 1
+)
+
+, active_users_daily AS (
+  SELECT
+    companyid,
+    snapshot_date,
+    COUNT(DISTINCT userid) AS active_users
+  FROM jc_users_daily
+  WHERE status = 0
+  GROUP BY 1, 2
+)
+
+, jc_latest_user AS (
+  SELECT userid
+  FROM jc_users_kept
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY userid
+    ORDER BY inserted_at_time DESC
+  ) = 1
+)
+
+, sf_events AS (
+  SELECT
+    CAST(userid AS INT64) AS userid,
+    CAST(companyid AS INT64) AS companyid,
+    LOWER(actiontype) AS actiontype,
+    CAST(created_at AS DATETIME) AS created_at
+  FROM {{INT_LOGS_STATUS}}
+  WHERE LOWER(REGEXP_REPLACE(IFNULL(integration, ''), r'\s+', '')) = 'salesforce'
+    AND userid IS NOT NULL
+
+  UNION ALL
+
+  SELECT
+    CAST(userid AS INT64) AS userid,
+    CAST(CASE WHEN managerid = 0 THEN userid ELSE managerid END AS INT64) AS companyid,
+    CASE WHEN salesforce = 1 THEN 'active' ELSE 'disabled' END AS actiontype,
+    DATETIME('2023-04-16') AS created_at
+  FROM {{INT_CONNECT_JCLIVE}}
+  WHERE inserted_at = '2023-04-16'
+    AND salesforce = 1
+    AND userid IS NOT NULL
+)
+
+, sf_versions AS (
+  SELECT
+    e.userid,
+    e.companyid,
+    DATE(e.created_at) AS version_date,
+    e.actiontype
+  FROM sf_events e
+  INNER JOIN jc_latest_user u
+    ON e.userid = u.userid
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY e.userid, DATE(e.created_at)
+    ORDER BY e.created_at DESC
+  ) = 1
+)
+
+, sf_spells AS (
+  SELECT
+    companyid,
+    userid,
+    version_date AS valid_from,
+    DATE_SUB(
+      LEAD(version_date) OVER (PARTITION BY userid ORDER BY version_date),
+      INTERVAL 1 DAY
+    ) AS valid_to,
+    actiontype
+  FROM sf_versions
+)
+
+, sf_active_spells AS (
+  SELECT
+    companyid,
+    userid,
+    valid_from,
+    IFNULL(valid_to, DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)) AS valid_to
+  FROM sf_spells
+  WHERE actiontype IN ('connected', 'active')
+    AND IFNULL(valid_to, DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)) >= DATE '2024-10-31'
+)
+
+, sf_running AS (
+  SELECT
+    companyid,
+    date,
+    SUM(delta) OVER (
+      PARTITION BY companyid
+      ORDER BY date
+      ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+    ) AS active_salesforce_integrations
+  FROM (
+    SELECT companyid, date, SUM(delta) AS delta
+    FROM (
+      SELECT
+        companyid,
+        GREATEST(valid_from, DATE '2024-10-31') AS date,
+        1 AS delta
+      FROM sf_active_spells
+
+      UNION ALL
+
+      SELECT
+        companyid,
+        DATE_ADD(valid_to, INTERVAL 1 DAY) AS date,
+        -1 AS delta
+      FROM sf_active_spells
+      WHERE valid_to < DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+    )
+    WHERE date BETWEEN DATE '2024-10-31' AND DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+    GROUP BY 1, 2
+  )
+)
+
+, sf_companies AS (
+  SELECT DISTINCT companyid
+  FROM sf_running
+)
+
+, sf_filled AS (
+  SELECT
+    companyid,
+    date,
+    IFNULL(
+      LAST_VALUE(active_salesforce_integrations IGNORE NULLS) OVER (
+        PARTITION BY companyid
+        ORDER BY date
+        ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+      ),
+      0
+    ) AS active_salesforce_integrations
+  FROM (
+    SELECT
+      d.companyid,
+      d.date,
+      r.active_salesforce_integrations
+    FROM (
+      SELECT cd.companyid, cd.date
+      FROM company_dates cd
+      INNER JOIN sf_companies s
+        ON cd.companyid = s.companyid
+
+      UNION DISTINCT
+
+      SELECT c.companyid, DATE_SUB(c.first_date, INTERVAL 1 DAY) AS date
+      FROM companies c
+      INNER JOIN sf_companies s
+        ON c.companyid = s.companyid
+
+      UNION DISTINCT
+
+      SELECT companyid, date
+      FROM sf_running
+    ) d
+    LEFT JOIN sf_running r
+      ON d.companyid = r.companyid
+     AND d.date = r.date
+  )
+)
+
+-- Live table. This is the current / today snapshot.
+, sfinfo_current AS (
+  SELECT
+    CAST(companyid AS INT64) AS companyid,
+    COUNT(CASE WHEN status = 0 OR status = 3 OR status = -3 THEN sfuserid END) AS latest_integrations,
+    COUNT(CASE WHEN status = 0 THEN sfuserid END) AS latest_active_users_integrations,
+    COUNT(CASE WHEN status = -3 THEN sfuserid END) AS latest_inactive_users_integrations
+  FROM (
+    SELECT
+      companyid,
+      status,
+      sfuserid,
+      DATE(TIMESTAMP_MILLIS(CAST(issued_at AS INT64))) AS issued_at,
+      instance_url,
+      ROW_NUMBER() OVER (PARTITION BY userid ORDER BY issued_at DESC) AS rn
+    FROM {{SALESFORCE_INFO}}
+    WHERE issued_at IS NOT NULL
+      AND sfuserid IS NOT NULL
+      AND userid IS NOT NULL
+      AND companyid IS NOT NULL
+  )
+  WHERE rn = 1
+    AND issued_at IS NOT NULL
+    AND instance_url NOT LIKE '%sandbox.my.salesforce.com'
+  GROUP BY 1
+)
+
+-- Same logic, table state as of one day ago.
+, sfinfo_previous AS (
+  SELECT
+    CAST(companyid AS INT64) AS companyid,
+    COUNT(CASE WHEN status = 0 THEN sfuserid END) AS latest_active_users_integrations
+  FROM (
+    SELECT
+      companyid,
+      status,
+      sfuserid,
+      DATE(TIMESTAMP_MILLIS(CAST(issued_at AS INT64))) AS issued_at,
+      instance_url,
+      ROW_NUMBER() OVER (PARTITION BY userid ORDER BY issued_at DESC) AS rn
+    FROM {{SALESFORCE_INFO}}
+    FOR SYSTEM_TIME AS OF TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 1 DAY)
+    WHERE issued_at IS NOT NULL
+      AND sfuserid IS NOT NULL
+      AND userid IS NOT NULL
+      AND companyid IS NOT NULL
+  )
+  WHERE rn = 1
+    AND issued_at IS NOT NULL
+    AND instance_url NOT LIKE '%sandbox.my.salesforce.com'
+  GROUP BY 1
+)
+
+, current_sf_companies AS (
+  SELECT companyid
+  FROM sfinfo_previous
+  WHERE latest_active_users_integrations > 0
+)
+
+, company_day AS (
+  SELECT
+    cd.date,
+    cd.companyid,
+    curr.company_status,
+    prev.plan_type AS previous_day_plan,
+    curr.plan_type AS current_day_plan,
+    IFNULL(ua.active_users, 0) AS current_active_users,
+    IFNULL(up.active_users, 0) AS previous_day_active_users,
+    IFNULL(ua.active_users, 0) - IFNULL(up.active_users, 0) AS active_users_difference,
+    CASE
+      WHEN UPPER(IFNULL(curr.company_status, '')) = 'CANCELED' THEN 0
+      ELSE IFNULL(sf.active_salesforce_integrations, 0)
+    END AS current_active_salesforce_integrations,
+    CASE
+      WHEN cd.date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+      THEN IFNULL(sp.latest_active_users_integrations, 0)
+    END AS previous_day_active_sfuserids,
+    CASE
+      WHEN cd.date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+      THEN IFNULL(sc.latest_active_users_integrations, 0)
+         - IFNULL(sp.latest_active_users_integrations, 0)
+    END AS active_sfuserids_difference,
+    CASE
+      WHEN cd.date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+      THEN IFNULL(sc.latest_integrations, 0)
+    END AS latest_integrations,
+    CASE
+      WHEN cd.date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+      THEN IFNULL(sc.latest_active_users_integrations, 0)
+    END AS latest_active_users_integrations,
+    CASE
+      WHEN cd.date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+      THEN IFNULL(sc.latest_inactive_users_integrations, 0)
+    END AS latest_inactive_users_integrations
+  FROM company_dates cd
+  INNER JOIN current_sf_companies cur
+    ON cd.companyid = cur.companyid
+  LEFT JOIN plan_status curr
+    ON cd.companyid = curr.companyid
+   AND cd.date = curr.date
+  LEFT JOIN plan_status prev
+    ON cd.companyid = prev.companyid
+   AND prev.date = DATE_SUB(cd.date, INTERVAL 1 DAY)
+  LEFT JOIN active_users_daily ua
+    ON cd.companyid = ua.companyid
+   AND cd.date = ua.snapshot_date
+  LEFT JOIN active_users_daily up
+    ON cd.companyid = up.companyid
+   AND up.snapshot_date = DATE_SUB(cd.date, INTERVAL 1 DAY)
+  LEFT JOIN sf_filled sf
+    ON cd.companyid = sf.companyid
+   AND cd.date = sf.date
+  LEFT JOIN sfinfo_current sc
+    ON cd.companyid = sc.companyid
+   AND cd.date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+  LEFT JOIN sfinfo_previous sp
+    ON cd.companyid = sp.companyid
+   AND cd.date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+)
+
+, final AS (
+  SELECT
+    date,
+    companyid,
+    company_status,
+    previous_day_plan,
+    current_day_plan,
+    CASE
+      WHEN current_day_plan IS NOT NULL
+       AND previous_day_plan IS NOT NULL
+       AND current_day_plan <> previous_day_plan
+      THEN 1
+      ELSE 0
+    END AS plan_change_flag,
+    current_active_users,
+    previous_day_active_users,
+    active_users_difference,
+    CASE
+      WHEN active_users_difference <> 0 THEN 1
+      ELSE 0
+    END AS active_users_change_flag,
+    current_active_salesforce_integrations,
+    previous_day_active_sfuserids,
+    active_sfuserids_difference,
+    CASE
+      WHEN active_sfuserids_difference <> 0 THEN 1
+      ELSE 0
+    END AS active_sfuserids_change_flag,
+    latest_integrations,
+    latest_active_users_integrations,
+    latest_inactive_users_integrations
+  FROM company_day
+)
+
+SELECT *
+FROM final
+WHERE plan_change_flag = 1
+   OR active_users_change_flag = 1
+   OR active_sfuserids_change_flag = 1
+ORDER BY date DESC, companyid
