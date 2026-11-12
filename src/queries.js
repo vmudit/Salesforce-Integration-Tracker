@@ -1,13 +1,17 @@
 /**
- * Salesforce Integration Tracker extract.
- * Loads sql/your_extract.sql and fills {{TABLE}} tokens with validated FQNs.
+ * Salesforce Integration Tracker extract, split into three jobs so
+ * salesforce_info is never read both live and with FOR SYSTEM_TIME AS OF
+ * in the same query.
+ *
+ *   sql/sfinfo_previous.sql  yesterday snapshot (time travel only)
+ *   sql/company_base.sql     company-day rows (live salesforce_info only)
+ *   sql/final_compare.sql    join + comparison flags
  */
 const fs = require("fs");
 const path = require("path");
 const { getProjectId } = require("./bigquery");
 
-const EXTRACT_SQL_PATH = path.join(__dirname, "..", "sql", "your_extract.sql");
-const TABLE_TOKEN_RE = /\{\{([A-Z_]+)\}\}/g;
+const SQL_DIR = path.join(__dirname, "..", "sql");
 
 const PROJECT_RE = /^[A-Za-z0-9][A-Za-z0-9._:-]{2,62}$/;
 const NAME_RE = /^[A-Za-z_][A-Za-z0-9_]{0,1023}$/;
@@ -106,36 +110,79 @@ function extractTableTokens() {
   };
 }
 
-function applyTableTokens(sql, tables) {
-  return sql.replace(TABLE_TOKEN_RE, (_match, name) => {
+function applyTableTokens(sql, tables, filePath) {
+  return sql.replace(/\{\{([A-Z_]+)\}\}/g, (_match, name) => {
     if (!Object.prototype.hasOwnProperty.call(tables, name)) {
-      throw new Error(`Unknown SQL table token {{${name}}} in ${EXTRACT_SQL_PATH}`);
+      throw new Error(`Unknown SQL table token {{${name}}} in ${filePath}`);
     }
     return tables[name];
   });
 }
 
-/** No bound parameters — dates are computed inside BigQuery. */
-function extractParams() {
-  return {};
+function stripComments(sql) {
+  return sql.replace(/--[^\n]*/g, "");
 }
 
-function buildExtractSql() {
+function loadSqlFile(fileName) {
+  const filePath = path.join(SQL_DIR, fileName);
   let sql;
   try {
-    sql = fs.readFileSync(EXTRACT_SQL_PATH, "utf8");
+    sql = fs.readFileSync(filePath, "utf8");
   } catch (err) {
-    const wrapped = new Error(`Failed to read extract SQL at ${EXTRACT_SQL_PATH}`);
+    const wrapped = new Error(`Failed to read SQL at ${filePath}`);
     wrapped.cause = err;
     throw wrapped;
   }
-
-  sql = applyTableTokens(sql, extractTableTokens()).replace(/;\s*$/, "").trim();
+  sql = applyTableTokens(sql, extractTableTokens(), filePath).replace(/;\s*$/, "").trim();
   const leftover = sql.match(/\{\{[A-Z_]+\}\}/);
   if (leftover) {
-    throw new Error(`Extract SQL still contains an unsubstituted token ${leftover[0]}`);
+    throw new Error(`${fileName} still contains an unsubstituted token ${leftover[0]}`);
   }
   return sql;
+}
+
+function asTempTable(name, sql) {
+  if (!/^_tracker_[a-z_]+$/.test(name)) {
+    throw new Error(`Refusing temp table name ${JSON.stringify(name)}`);
+  }
+  const body = sql.replace(/^(?:\s|--[^\n]*\n)+/, "").trim();
+  return `CREATE TEMP TABLE ${name} AS\n${body}`;
+}
+
+/**
+ * Three statements, run in order inside one BigQuery session.
+ * The first two land in temp tables. The third joins them.
+ */
+function buildTrackerSteps() {
+  const previous = loadSqlFile("sfinfo_previous.sql");
+  const base = loadSqlFile("company_base.sql");
+  const finalSql = loadSqlFile("final_compare.sql");
+
+  const previousCode = stripComments(previous);
+  const baseCode = stripComments(base);
+  const finalCode = stripComments(finalSql);
+
+  if (!previousCode.includes("FOR SYSTEM_TIME AS OF")) {
+    throw new Error("sfinfo_previous.sql is missing FOR SYSTEM_TIME AS OF");
+  }
+  if ((previousCode.match(/FOR SYSTEM_TIME AS OF/g) || []).length !== 1) {
+    throw new Error("sfinfo_previous.sql must reference FOR SYSTEM_TIME AS OF exactly once");
+  }
+  if (baseCode.includes("FOR SYSTEM_TIME")) {
+    throw new Error("company_base.sql must not use FOR SYSTEM_TIME");
+  }
+  if (!baseCode.includes("_tracker_sfinfo_previous")) {
+    throw new Error("company_base.sql must read _tracker_sfinfo_previous");
+  }
+  if (finalCode.includes("FOR SYSTEM_TIME") || /salesforce_info/i.test(finalCode)) {
+    throw new Error("final_compare.sql must not read salesforce_info");
+  }
+
+  return {
+    previousSql: asTempTable("_tracker_sfinfo_previous", previous),
+    baseSql: asTempTable("_tracker_company_base", base),
+    finalSql,
+  };
 }
 
 /** Aggregate-only probe. Never returns customer rows. */
@@ -152,9 +199,8 @@ function buildProbeSql() {
 }
 
 module.exports = {
-  buildExtractSql,
+  buildTrackerSteps,
   buildProbeSql,
-  extractParams,
   factUserMasterTable,
   salesforceInfoTable,
 };

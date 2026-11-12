@@ -1,5 +1,5 @@
-const { runQuery, isBigQueryConfigured } = require("./bigquery");
-const { buildExtractSql, extractParams } = require("./queries");
+const { runSessionQueries, isBigQueryConfigured, coerceNumber } = require("./bigquery");
+const { buildTrackerSteps } = require("./queries");
 const { buildPayload } = require("./transform");
 const { buildDemoRows } = require("./demo-data");
 
@@ -38,7 +38,28 @@ async function fetchData() {
     queryMs = Date.now() - startedAt;
   } else {
     if (!isBigQueryConfigured()) throw notConfigured();
-    rows = await runQuery(buildExtractSql(), extractParams());
+    const steps = buildTrackerSteps();
+    rows = await runSessionQueries(
+      [
+        { name: "sfinfo_previous", sql: steps.previousSql },
+        {
+          name: "sfinfo_previous_count",
+          sql: "SELECT COUNT(*) AS company_count FROM _tracker_sfinfo_previous",
+          fetchRows: true,
+        },
+        { name: "company_base", sql: steps.baseSql },
+        { name: "final_compare", sql: steps.finalSql, fetchRows: true },
+      ],
+      {
+        onStep(step, stepRows) {
+          if (step.name !== "sfinfo_previous_count") return null;
+          const companies = coerceNumber(stepRows[0] && stepRows[0].company_count);
+          console.log(`[tracker] previous companies=${companies}`);
+          if (companies === 0) return { stop: true, rows: [] };
+          return null;
+        },
+      }
+    );
     queryMs = Date.now() - startedAt;
   }
 
