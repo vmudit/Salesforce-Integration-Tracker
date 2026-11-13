@@ -1,6 +1,8 @@
--- Joins company_day to the yesterday snapshot CTE (previous_sf) and adds
--- the comparison and flag columns. queries.js prepends previous_sf from the
--- rows returned by sql/sfinfo_previous.sql. No BigQuery session is used.
+-- Joins each company-day to sfinfo_by_date on companyid and date.
+-- previous_day_active_sfuserids is the status = 0 count on the day before
+-- that row's date, including previous months.
+-- The difference is that date's count minus the day before.
+-- latest_* stays the live snapshot and is still only filled on yesterday.
 
 WITH compared AS (
   SELECT
@@ -24,18 +26,10 @@ WITH compared AS (
       ELSE 0
     END AS active_users_change_flag,
     b.current_active_salesforce_integrations,
+    IFNULL(p.previous_day_active_sfuserids, 0) AS previous_day_active_sfuserids,
+    IFNULL(p.active_sfuserids, 0) - IFNULL(p.previous_day_active_sfuserids, 0) AS active_sfuserids_difference,
     CASE
-      WHEN b.is_latest_date = 1 THEN IFNULL(p.previous_day_active_sfuserids, 0)
-    END AS previous_day_active_sfuserids,
-    CASE
-      WHEN b.is_latest_date = 1
-      THEN IFNULL(b.latest_active_users_integrations, 0)
-         - IFNULL(p.previous_day_active_sfuserids, 0)
-    END AS active_sfuserids_difference,
-    CASE
-      WHEN b.is_latest_date = 1
-       AND IFNULL(b.latest_active_users_integrations, 0)
-         - IFNULL(p.previous_day_active_sfuserids, 0) <> 0
+      WHEN IFNULL(p.active_sfuserids, 0) - IFNULL(p.previous_day_active_sfuserids, 0) <> 0
       THEN 1
       ELSE 0
     END AS active_sfuserids_change_flag,
@@ -43,9 +37,9 @@ WITH compared AS (
     b.latest_active_users_integrations,
     b.latest_inactive_users_integrations
   FROM company_day b
-  LEFT JOIN previous_sf p
+  LEFT JOIN sfinfo_by_date p
     ON b.companyid = p.companyid
-   AND b.is_latest_date = 1
+   AND b.date = p.date
 )
 
 SELECT
