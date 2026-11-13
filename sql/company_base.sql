@@ -1,6 +1,7 @@
--- Company-day extract. This job reads live salesforce_info only.
--- Yesterday's userid counts are already in the session temp table
--- _tracker_sfinfo_previous, loaded by sql/sfinfo_previous.sql.
+-- Company-day extract. This query reads live salesforce_info only.
+-- Yesterday's userid counts arrive as the previous_sf CTE, built from the
+-- separate snapshot query. This file is the CTE list; final_compare.sql
+-- selects from company_day.
 --
 -- Keeps a row when the plan changed, active users changed, or the row is
 -- yesterday (so the compare query can still flag a Salesforce userid change).
@@ -299,6 +300,8 @@ WITH list_of_dates AS (
 )
 
 , company_day AS (
+  SELECT *
+  FROM (
   SELECT
     cd.date,
     cd.companyid,
@@ -329,7 +332,7 @@ WITH list_of_dates AS (
       THEN IFNULL(sc.latest_inactive_users_integrations, 0)
     END AS latest_inactive_users_integrations
   FROM company_dates cd
-  INNER JOIN _tracker_sfinfo_previous cur
+  INNER JOIN previous_sf cur
     ON cd.companyid = cur.companyid
   LEFT JOIN plan_status curr
     ON cd.companyid = curr.companyid
@@ -349,14 +352,12 @@ WITH list_of_dates AS (
   LEFT JOIN sfinfo_current sc
     ON cd.companyid = sc.companyid
    AND cd.date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+  ) day
+  WHERE (
+      current_day_plan IS NOT NULL
+      AND previous_day_plan IS NOT NULL
+      AND current_day_plan <> previous_day_plan
+    )
+    OR active_users_difference <> 0
+    OR is_latest_date = 1
 )
-
-SELECT *
-FROM company_day
-WHERE (
-    current_day_plan IS NOT NULL
-    AND previous_day_plan IS NOT NULL
-    AND current_day_plan <> previous_day_plan
-  )
-  OR active_users_difference <> 0
-  OR is_latest_date = 1

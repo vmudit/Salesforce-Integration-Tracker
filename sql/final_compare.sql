@@ -1,6 +1,6 @@
--- Joins the company-day extract to yesterday's Salesforce userid snapshot
--- and adds the comparison and flag columns.
--- Runs in the same BigQuery session as the two temp tables.
+-- Joins company_day to the yesterday snapshot CTE (previous_sf) and adds
+-- the comparison and flag columns. queries.js prepends previous_sf from the
+-- rows returned by sql/sfinfo_previous.sql. No BigQuery session is used.
 
 WITH compared AS (
   SELECT
@@ -42,8 +42,8 @@ WITH compared AS (
     b.latest_integrations,
     b.latest_active_users_integrations,
     b.latest_inactive_users_integrations
-  FROM _tracker_company_base b
-  LEFT JOIN _tracker_sfinfo_previous p
+  FROM company_day b
+  LEFT JOIN previous_sf p
     ON b.companyid = p.companyid
    AND b.is_latest_date = 1
 )

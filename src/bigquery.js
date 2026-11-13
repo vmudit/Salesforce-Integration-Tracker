@@ -128,7 +128,7 @@ function maxBytesBilled() {
   return Number.isFinite(n) && n > 0 ? String(Math.floor(n)) : null;
 }
 
-async function runQuery(sql, params = {}) {
+async function runQuery(sql, params = {}, types = {}) {
   const bq = getBigQueryClient();
   if (!bq) {
     const err = new Error("BigQuery is not configured");
@@ -136,7 +136,7 @@ async function runQuery(sql, params = {}) {
     throw err;
   }
 
-  const types = buildParamTypes(params);
+  const mergedTypes = { ...buildParamTypes(params), ...types };
   const options = {
     query: sql,
     // Must match the dataset's region exactly. `US` (multi-region) and
@@ -147,10 +147,10 @@ async function runQuery(sql, params = {}) {
     location: process.env.BQ_LOCATION || "us-central1",
   };
   if (Object.keys(params).length > 0) {
-    options.params = wrapParamsForTypes(bq, params, types);
+    options.params = wrapParamsForTypes(bq, params, mergedTypes);
   }
-  if (Object.keys(types).length > 0) {
-    options.types = types;
+  if (Object.keys(mergedTypes).length > 0) {
+    options.types = mergedTypes;
   }
   const ceiling = maxBytesBilled();
   if (ceiling) {
@@ -172,154 +172,11 @@ async function runQuery(sql, params = {}) {
   }
 }
 
-function queryLocation() {
-  return process.env.BQ_LOCATION || "us-central1";
-}
-
-function sessionIdFrom(metadata) {
-  return metadata?.statistics?.query?.sessionInfo?.sessionId || null;
-}
-
-function wrapJobError(err, step) {
-  const detail = err?.errors?.[0]?.message || err?.status?.errorResult?.message || err.message;
-  const wrapped = new Error(`${step.name}: ${detail}`);
-  wrapped.code = "BIGQUERY_ERROR";
-  wrapped.sql = step.sql;
-  wrapped.step = step.name;
-  return wrapped;
-}
-
-function waitForComplete(job) {
-  return new Promise((resolve, reject) => {
-    let settled = false;
-    const finish = (fn, value) => {
-      if (settled) return;
-      settled = true;
-      job.removeAllListeners();
-      fn(value);
-    };
-    job.on("complete", (metadata) => finish(resolve, metadata));
-    job.on("error", (err) => finish(reject, err));
-  });
-}
-
-// SELECT jobs are fetched. CREATE TEMP TABLE jobs are only waited on, so the
-// company-day temp table is not pulled back to the server.
-async function finishJob(job, fetchRows) {
-  if (!fetchRows) {
-    const metadata = await waitForComplete(job);
-    if (metadata?.status?.errorResult) {
-      const wrapped = new Error(metadata.status.errorResult.message);
-      wrapped.errors = metadata.status.errors;
-      throw wrapped;
-    }
-    return { rows: [], metadata };
-  }
-  try {
-    const [rows] = await job.getQueryResults();
-    const [metadata] = await job.getMetadata();
-    return { rows, metadata };
-  } catch (err) {
-    const [metadata] = await job.getMetadata();
-    if (metadata?.status?.errorResult) {
-      const wrapped = new Error(metadata.status.errorResult.message);
-      wrapped.errors = metadata.status.errors;
-      throw wrapped;
-    }
-    throw err;
-  }
-}
-
-/**
- * Runs statements in one BigQuery session so later statements can read
- * TEMP tables created by earlier ones. Each statement is its own job, which
- * is what lets a time-travel read and a live read of the same table coexist.
- */
-async function runSessionQueries(steps, options = {}) {
-  const bq = getBigQueryClient();
-  if (!bq) {
-    const err = new Error("BigQuery is not configured");
-    err.code = "BIGQUERY_NOT_CONFIGURED";
-    throw err;
-  }
-  if (!Array.isArray(steps) || steps.length === 0) {
-    throw new Error("runSessionQueries requires at least one statement");
-  }
-
-  const location = queryLocation();
-  const ceiling = maxBytesBilled();
-  let sessionId = null;
-  let lastRows = [];
-
-  try {
-    for (const step of steps) {
-      const started = Date.now();
-      const jobOptions = {
-        query: step.sql,
-        location,
-        useLegacySql: false,
-      };
-      if (ceiling) jobOptions.maximumBytesBilled = ceiling;
-      if (!sessionId) jobOptions.createSession = true;
-      else jobOptions.connectionProperties = [{ key: "session_id", value: sessionId }];
-
-      let job;
-      let metadata;
-      try {
-        [job] = await bq.createQueryJob(jobOptions);
-        const finished = await finishJob(job, step.fetchRows === true);
-        lastRows = finished.rows;
-        metadata = finished.metadata;
-      } catch (err) {
-        throw wrapJobError(err, step);
-      }
-
-      if (!sessionId) {
-        sessionId = sessionIdFrom(metadata);
-        if (!sessionId && job) {
-          const [fresh] = await job.getMetadata();
-          sessionId = sessionIdFrom(fresh);
-        }
-        if (!sessionId) {
-          const err = new Error("BigQuery did not open a session for the snapshot query");
-          err.code = "BIGQUERY_ERROR";
-          err.sql = step.sql;
-          err.step = step.name;
-          throw err;
-        }
-      }
-
-      console.log(`[tracker] ${step.name} ${Date.now() - started}ms rows=${lastRows.length}`);
-
-      if (typeof options.onStep === "function") {
-        const action = options.onStep(step, lastRows);
-        if (action && action.stop) return action.rows || [];
-      }
-    }
-    return lastRows;
-  } finally {
-    if (sessionId) {
-      try {
-        const [job] = await bq.createQueryJob({
-          query: "CALL BQ.ABORT_SESSION()",
-          location,
-          useLegacySql: false,
-          connectionProperties: [{ key: "session_id", value: sessionId }],
-        });
-        await finishJob(job, false);
-      } catch (abortErr) {
-        console.warn(`[tracker] session close failed: ${abortErr.message}`);
-      }
-    }
-  }
-}
-
 module.exports = {
   getBigQueryClient,
   getProjectId,
   isBigQueryConfigured,
   runQuery,
-  runSessionQueries,
   coerceNumber,
   coerceString,
   unwrapBqValue,

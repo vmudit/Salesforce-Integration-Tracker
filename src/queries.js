@@ -1,11 +1,13 @@
 /**
- * Salesforce Integration Tracker extract, split into three jobs so
- * salesforce_info is never read both live and with FOR SYSTEM_TIME AS OF
- * in the same query.
+ * Salesforce Integration Tracker extract, split so salesforce_info is never
+ * read both live and with FOR SYSTEM_TIME AS OF in the same query.
  *
- *   sql/sfinfo_previous.sql  yesterday snapshot (time travel only)
- *   sql/company_base.sql     company-day rows (live salesforce_info only)
+ *   sql/sfinfo_previous.sql  yesterday snapshot (its own job, time travel only)
+ *   sql/company_base.sql     company-day CTEs (live salesforce_info only)
  *   sql/final_compare.sql    join + comparison flags
+ *
+ * The snapshot rows are passed into the compare job as @previous_sf.
+ * BigQuery sessions are not used.
  */
 const fs = require("fs");
 const path = require("path");
@@ -141,48 +143,51 @@ function loadSqlFile(fileName) {
   return sql;
 }
 
-function asTempTable(name, sql) {
-  if (!/^_tracker_[a-z_]+$/.test(name)) {
-    throw new Error(`Refusing temp table name ${JSON.stringify(name)}`);
-  }
-  const body = sql.replace(/^(?:\s|--[^\n]*\n)+/, "").trim();
-  return `CREATE TEMP TABLE ${name} AS\n${body}`;
+function stripLeadingComments(sql) {
+  return sql.replace(/^(?:\s|--[^\n]*\n)+/, "").trim();
 }
 
 /**
- * Three statements, run in order inside one BigQuery session.
- * The first two land in temp tables. The third joins them.
+ * Two statements. The first is the time-travel snapshot. The second joins
+ * those rows, via @previous_sf, to the live company-day extract and adds flags.
  */
-function buildTrackerSteps() {
-  const previous = loadSqlFile("sfinfo_previous.sql");
-  const base = loadSqlFile("company_base.sql");
+function buildTrackerQueries() {
+  const previousSql = loadSqlFile("sfinfo_previous.sql");
+  const baseSql = loadSqlFile("company_base.sql");
   const finalSql = loadSqlFile("final_compare.sql");
 
-  const previousCode = stripComments(previous);
-  const baseCode = stripComments(base);
+  const previousCode = stripComments(previousSql);
+  const baseCode = stripComments(baseSql);
   const finalCode = stripComments(finalSql);
 
-  if (!previousCode.includes("FOR SYSTEM_TIME AS OF")) {
-    throw new Error("sfinfo_previous.sql is missing FOR SYSTEM_TIME AS OF");
-  }
   if ((previousCode.match(/FOR SYSTEM_TIME AS OF/g) || []).length !== 1) {
     throw new Error("sfinfo_previous.sql must reference FOR SYSTEM_TIME AS OF exactly once");
   }
-  if (baseCode.includes("FOR SYSTEM_TIME")) {
-    throw new Error("company_base.sql must not use FOR SYSTEM_TIME");
+  if (baseCode.includes("FOR SYSTEM_TIME") || finalCode.includes("FOR SYSTEM_TIME")) {
+    throw new Error("company_base.sql and final_compare.sql must not use FOR SYSTEM_TIME");
   }
-  if (!baseCode.includes("_tracker_sfinfo_previous")) {
-    throw new Error("company_base.sql must read _tracker_sfinfo_previous");
+  if (!baseCode.includes("previous_sf") || !finalCode.includes("previous_sf")) {
+    throw new Error("The compare query must read the previous_sf snapshot");
   }
-  if (finalCode.includes("FOR SYSTEM_TIME") || /salesforce_info/i.test(finalCode)) {
+  if (/salesforce_info/i.test(finalCode)) {
     throw new Error("final_compare.sql must not read salesforce_info");
   }
 
-  return {
-    previousSql: asTempTable("_tracker_sfinfo_previous", previous),
-    baseSql: asTempTable("_tracker_company_base", base),
-    finalSql,
-  };
+  const baseBody = stripLeadingComments(baseSql).replace(/^WITH\s+/i, "").trim();
+  const finalBody = stripLeadingComments(finalSql).replace(/^WITH\s+/i, "").trim();
+  const compareSql = `WITH previous_sf AS (
+  SELECT
+    companyid,
+    previous_day_active_sfuserids
+  FROM UNNEST(@previous_sf)
+),
+${baseBody},
+${finalBody}`;
+
+  if (stripComments(compareSql).includes("FOR SYSTEM_TIME")) {
+    throw new Error("The compare query must not use FOR SYSTEM_TIME");
+  }
+  return { previousSql, compareSql };
 }
 
 /** Aggregate-only probe. Never returns customer rows. */
@@ -199,7 +204,7 @@ function buildProbeSql() {
 }
 
 module.exports = {
-  buildTrackerSteps,
+  buildTrackerQueries,
   buildProbeSql,
   factUserMasterTable,
   salesforceInfoTable,
