@@ -1,8 +1,7 @@
 /**
  * Synthetic tracker rows for local UI review when DEMO_MODE=1.
- * Shape matches the extract. previous_day_active_sfuserids is the prior
- * day's count on every date, not only yesterday. latest_* stays on the
- * latest date.
+ * Shape matches the extract: change rows only, and the live Salesforce
+ * userid measures are filled only on the latest date.
  */
 function buildDemoRows() {
   const latest = "2026-11-11";
@@ -95,9 +94,7 @@ function buildDemoRows() {
       const previousPlan = i === 1 ? company.from : company.to;
       const currentPlan = company.to;
       const planChanged = previousPlan !== currentPlan ? 1 : 0;
-      const previousSf = company.sf[i - 1];
-      const currentSf = company.sf[i];
-      const sfDiff = currentSf - previousSf;
+      const sfDiff = isLatest ? company.latestActive - company.prevSf : null;
 
       const row = {
         date,
@@ -112,9 +109,9 @@ function buildDemoRows() {
         active_users_change_flag: userDiff !== 0 ? 1 : 0,
         current_active_salesforce_integrations:
           company.status.toUpperCase() === "CANCELED" ? 0 : company.sf[i],
-        previous_day_active_sfuserids: previousSf,
+        previous_day_active_sfuserids: isLatest ? company.prevSf : null,
         active_sfuserids_difference: sfDiff,
-        active_sfuserids_change_flag: sfDiff !== 0 ? 1 : 0,
+        active_sfuserids_change_flag: sfDiff != null && sfDiff !== 0 ? 1 : 0,
         latest_integrations: isLatest ? company.latestAll : null,
         latest_active_users_integrations: isLatest ? company.latestActive : null,
         latest_inactive_users_integrations: isLatest ? company.latestInactive : null,

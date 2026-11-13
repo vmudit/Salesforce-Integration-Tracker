@@ -1,12 +1,13 @@
 /**
- * Salesforce Integration Tracker extract.
+ * Salesforce Integration Tracker extract, split so salesforce_info is never
+ * read both live and with FOR SYSTEM_TIME AS OF in the same query.
  *
- *   sql/sfinfo_previous.sql  one Salesforce userid count per company per date
- *   sql/company_base.sql     company-day CTEs, including the live latest_* snapshot
- *   sql/final_compare.sql    joins sfinfo_by_date on companyid and date, then flags
+ *   sql/sfinfo_previous.sql  yesterday snapshot (its own job, time travel only)
+ *   sql/company_base.sql     company-day CTEs (live salesforce_info only)
+ *   sql/final_compare.sql    join + comparison flags
  *
- * sfinfo_previous is inlined. It does not use FOR SYSTEM_TIME, because that
- * timestamp cannot vary by row date and cannot see previous months.
+ * The snapshot rows are passed into the compare job as @previous_sf.
+ * BigQuery sessions are not used.
  */
 const fs = require("fs");
 const path = require("path");
@@ -147,10 +148,8 @@ function stripLeadingComments(sql) {
 }
 
 /**
- * One BigQuery job. sql/sfinfo_previous.sql is inlined as sfinfo_by_date.
- * It is a live read of salesforce_info, same as the latest_* snapshot, so it
- * can share the query. FOR SYSTEM_TIME is not used: that timestamp cannot
- * vary by row date and cannot see previous months.
+ * Two statements. The first is the time-travel snapshot. The second joins
+ * those rows, via @previous_sf, to the live company-day extract and adds flags.
  */
 function buildTrackerQueries() {
   const previousSql = loadSqlFile("sfinfo_previous.sql");
@@ -161,24 +160,26 @@ function buildTrackerQueries() {
   const baseCode = stripComments(baseSql);
   const finalCode = stripComments(finalSql);
 
-  if (previousCode.includes("FOR SYSTEM_TIME") || baseCode.includes("FOR SYSTEM_TIME") || finalCode.includes("FOR SYSTEM_TIME")) {
-    throw new Error("Tracker SQL must not use FOR SYSTEM_TIME");
+  if ((previousCode.match(/FOR SYSTEM_TIME AS OF/g) || []).length !== 1) {
+    throw new Error("sfinfo_previous.sql must reference FOR SYSTEM_TIME AS OF exactly once");
   }
-  if (!previousCode.includes("list_of_dates") || !previousCode.includes("previous_day_active_sfuserids")) {
-    throw new Error("sfinfo_previous.sql must build a date list and a previous-day count");
+  if (baseCode.includes("FOR SYSTEM_TIME") || finalCode.includes("FOR SYSTEM_TIME")) {
+    throw new Error("company_base.sql and final_compare.sql must not use FOR SYSTEM_TIME");
   }
-  if (!baseCode.includes("sfinfo_by_date")) {
-    throw new Error("company_base.sql must filter companies from sfinfo_by_date");
+  if (!baseCode.includes("previous_sf") || !finalCode.includes("previous_sf")) {
+    throw new Error("The compare query must read the previous_sf snapshot");
   }
-  if (!finalCode.includes("b.date = p.date")) {
-    throw new Error("final_compare.sql must join sfinfo_by_date on date");
+  if (/salesforce_info/i.test(finalCode)) {
+    throw new Error("final_compare.sql must not read salesforce_info");
   }
 
-  const previousBody = stripLeadingComments(previousSql).trim();
   const baseBody = stripLeadingComments(baseSql).replace(/^WITH\s+/i, "").trim();
   const finalBody = stripLeadingComments(finalSql).replace(/^WITH\s+/i, "").trim();
-  const compareSql = `WITH sfinfo_by_date AS (
-${previousBody}
+  const compareSql = `WITH previous_sf AS (
+  SELECT
+    companyid,
+    previous_day_active_sfuserids
+  FROM UNNEST(@previous_sf)
 ),
 ${baseBody},
 ${finalBody}`;
@@ -186,10 +187,7 @@ ${finalBody}`;
   if (stripComments(compareSql).includes("FOR SYSTEM_TIME")) {
     throw new Error("The compare query must not use FOR SYSTEM_TIME");
   }
-  if (stripComments(compareSql).includes("@previous_sf")) {
-    throw new Error("The compare query must not take a snapshot parameter");
-  }
-  return { compareSql };
+  return { previousSql, compareSql };
 }
 
 /** Aggregate-only probe. Never returns customer rows. */
