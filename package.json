@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "check": "node --check server.js && node --check src/bigquery.js && node --check src/queries.js && node --check src/transform.js && node --check src/data-service.js && node --check src/diagnostics.js && node --check src/scheduler.js && node --check src/demo-data.js"
+    "check": "node --check server.js && node --check src/bigquery.js && node --check src/queries.js && node --check src/transform.js && node --check src/data-service.js && node --check src/sheet-log.js && node --check src/diagnostics.js && node --check src/scheduler.js && node --check src/demo-data.js"
   },
   "engines": {
     "node": ">=20"

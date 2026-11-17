@@ -15,11 +15,13 @@ credentials.json
 gcp-key*.json
 
 # ---------------------------------------------------------------------------
-# Generated / exported data. The dashboard reads BigQuery live, so none of this
-# should exist here — and if it does, it holds named customer revenue.
+# Generated / exported data. Other CSV exports can hold customer revenue.
+# salesforce_integration_log.csv is the dashboard sheet and is kept.
 # ---------------------------------------------------------------------------
 data/
 *.csv
+!salesforce_integration_log.csv
+salesforce_integration_log.dates
 data.json
 dashboard.html
 fum_export*.csv

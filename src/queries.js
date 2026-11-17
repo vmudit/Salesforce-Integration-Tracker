@@ -12,7 +12,6 @@
 const fs = require("fs");
 const path = require("path");
 const { getProjectId } = require("./bigquery");
-const { COLUMNS } = require("./transform");
 
 const SQL_DIR = path.join(__dirname, "..", "sql");
 
@@ -204,130 +203,15 @@ function buildProbeSql() {
   `;
 }
 
-function sheetColumnType(column) {
-  if (column.type === "date") return "DATE";
-  if (column.type === "string") return "STRING";
-  return "INT64";
-}
-
-function sheetTable() {
-  return datasetTable(
-    "BQ_SHEET_DATASET",
-    "BQ_SHEET_TABLE",
-    "analytics_reporting",
-    "salesforce_integration_sheet"
-  );
-}
-
-function sheetDaysTable() {
-  const sheet = sheetTable();
-  const table = checkIdent(`${sheet.table}_days`, NAME_RE, "sheet days table");
-  return {
-    fqn: `\`${sheet.project}.${sheet.dataset}.${table}\``,
-    project: sheet.project,
-    dataset: sheet.dataset,
-    table,
-  };
-}
-
-function yesterdayDateSql() {
-  return "DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)";
-}
-
-/** Creates the append-only sheet and the one-row-per-day ledger. */
-function buildSheetEnsureSql() {
-  const columns = COLUMNS.map((column) => `${column.key} ${sheetColumnType(column)}`).join(",\n  ");
-  return [
-    `CREATE TABLE IF NOT EXISTS ${sheetTable().fqn} (
-  ${columns},
-  appended_at TIMESTAMP
-)`,
-    `CREATE TABLE IF NOT EXISTS ${sheetDaysTable().fqn} (
-  snapshot_date DATE NOT NULL,
-  row_count INT64,
-  appended_at TIMESTAMP
-)`,
-  ];
-}
-
-/** 1 when yesterday's rows are already stored, including a day with no changes. */
-function buildSheetStatusSql() {
-  return `
-    SELECT COUNT(*) AS loaded
-    FROM ${sheetDaysTable().fqn}
-    WHERE snapshot_date = ${yesterdayDateSql()}
-  `;
-}
-
-/** Every stored day, in the same column order the dashboard already renders. */
-function buildSheetReadSql() {
-  const columns = COLUMNS.map((column) => column.key).join(",\n  ");
-  return `
-    SELECT
-      ${columns}
-    FROM ${sheetTable().fqn}
-    ORDER BY date DESC, companyid
-  `;
-}
-
 /** The calendar date the live extract treats as yesterday. */
 function buildYesterdaySql() {
-  return `SELECT ${yesterdayDateSql()} AS snapshot_date`;
-}
-
-/**
- * Inserts yesterday's rows. Matching company/date rows are left as they are,
- * so a retry cannot append the same day twice.
- */
-function buildSheetMergeSql() {
-  const insertColumns = COLUMNS.map((column) => column.key).join(", ");
-  const values = COLUMNS.map((column) => `S.${column.key}`).join(", ");
-  return `
-    MERGE ${sheetTable().fqn} AS T
-    USING UNNEST(@day_rows) AS S
-    ON T.date = S.date AND T.companyid = S.companyid
-    WHEN NOT MATCHED THEN
-      INSERT (${insertColumns}, appended_at)
-      VALUES (${values}, CURRENT_TIMESTAMP())
-  `;
-}
-
-/** Closes a date after its rows are stored. A second close the same day inserts nothing. */
-function buildSheetMarkDaySql() {
-  const days = sheetDaysTable().fqn;
-  return `
-    INSERT INTO ${days} (snapshot_date, row_count, appended_at)
-    SELECT @snapshot_date, @row_count, CURRENT_TIMESTAMP()
-    FROM UNNEST([1])
-    WHERE NOT EXISTS (
-      SELECT 1
-      FROM ${days}
-      WHERE snapshot_date = @snapshot_date
-    )
-  `;
-}
-
-function sheetRowType() {
-  const type = {};
-  for (const column of COLUMNS) {
-    if (column.type === "date") type[column.key] = "DATE";
-    else if (column.type === "string") type[column.key] = "STRING";
-    else type[column.key] = "INT64";
-  }
-  return type;
+  return "SELECT DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY) AS snapshot_date";
 }
 
 module.exports = {
   buildTrackerQueries,
   buildProbeSql,
-  buildSheetEnsureSql,
-  buildSheetStatusSql,
-  buildSheetReadSql,
   buildYesterdaySql,
-  buildSheetMergeSql,
-  buildSheetMarkDaySql,
-  sheetRowType,
   factUserMasterTable,
   salesforceInfoTable,
-  sheetTable,
 };

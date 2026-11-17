@@ -272,7 +272,7 @@ app.listen(PORT, HOST, () => {
       time: REFRESH_AT,
       timeZone: REFRESH_TZ,
       onFire: async () => {
-        console.log("[scheduler] appending yesterday and reloading the sheet");
+        console.log("[scheduler] appending yesterday to salesforce_integration_log.csv");
         await loadFresh();
       },
     });

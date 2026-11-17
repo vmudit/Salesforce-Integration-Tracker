@@ -1,16 +1,8 @@
-const { runQuery, isBigQueryConfigured, unwrapBqValue, getBigQueryClient } = require("./bigquery");
-const {
-  buildTrackerQueries,
-  buildSheetEnsureSql,
-  buildSheetStatusSql,
-  buildSheetReadSql,
-  buildYesterdaySql,
-  buildSheetMergeSql,
-  buildSheetMarkDaySql,
-  sheetRowType,
-} = require("./queries");
-const { COLUMNS, buildPayload } = require("./transform");
+const { runQuery, isBigQueryConfigured, unwrapBqValue } = require("./bigquery");
+const { buildTrackerQueries, buildYesterdaySql } = require("./queries");
+const { buildPayload } = require("./transform");
 const { buildDemoRows } = require("./demo-data");
+const { readLog, dateIsStored, appendDay } = require("./sheet-log");
 
 let lastRefresh = null;
 
@@ -66,27 +58,6 @@ function prefixStep(err, step) {
   return err;
 }
 
-async function ensureSheetTables() {
-  for (const sql of buildSheetEnsureSql()) {
-    try {
-      await runQuery(sql);
-    } catch (err) {
-      throw prefixStep(err, "sheet_ensure");
-    }
-  }
-}
-
-async function yesterdayIsStored() {
-  let rows;
-  try {
-    rows = await runQuery(buildSheetStatusSql());
-  } catch (err) {
-    throw prefixStep(err, "sheet_status");
-  }
-  const loaded = Number(unwrapBqValue(rows[0] && rows[0].loaded));
-  return Number.isFinite(loaded) && loaded > 0;
-}
-
 function asDate(value) {
   const raw = unwrapBqValue(value);
   if (raw == null || raw === "") return null;
@@ -94,18 +65,7 @@ function asDate(value) {
   return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : null;
 }
 
-function toSheetValue(column, value, bq) {
-  if (value == null || value === "") return null;
-  if (column.type === "date") return bq.date(String(value).slice(0, 10));
-  if (column.type === "string") return String(value);
-  return String(value);
-}
-
-/**
- * Runs yesterday's extract once and appends that date to the sheet.
- * A later run on the same day finds the ledger row and does not append again.
- */
-async function appendYesterday() {
+async function yesterdayDate() {
   let dateRows;
   try {
     dateRows = await runQuery(buildYesterdaySql());
@@ -118,7 +78,14 @@ async function appendYesterday() {
     err.code = "BIGQUERY_ERROR";
     throw prefixStep(err, "sheet_date");
   }
+  return snapshotDate;
+}
 
+/**
+ * Runs yesterday's extract once and appends that date to the CSV.
+ * A later run on the same day finds the date already stored and does not append again.
+ */
+async function appendYesterday(snapshotDate) {
   const { previousSql, compareSql } = buildTrackerQueries();
   let previousRows;
   try {
@@ -154,42 +121,17 @@ async function appendYesterday() {
     dayRows = payload.records.filter((row) => row.date === snapshotDate);
   }
 
-  const bq = getBigQueryClient();
+  let written;
   try {
-    if (dayRows.length > 0) {
-      await runQuery(
-        buildSheetMergeSql(),
-        {
-          day_rows: dayRows.map((row) => {
-            const out = {};
-            for (const column of COLUMNS) out[column.key] = toSheetValue(column, row[column.key], bq);
-            return out;
-          }),
-        },
-        { day_rows: [sheetRowType()] }
-      );
-    }
-    await runQuery(
-      buildSheetMarkDaySql(),
-      { snapshot_date: snapshotDate, row_count: String(dayRows.length) },
-      { snapshot_date: "DATE", row_count: "INT64" }
-    );
+    written = appendDay(snapshotDate, dayRows);
   } catch (err) {
     throw prefixStep(err, "sheet_append");
   }
-  console.log(`[sheet] appended date=${snapshotDate} rows=${dayRows.length}`);
-}
-
-async function readSheet() {
-  try {
-    return await runQuery(buildSheetReadSql());
-  } catch (err) {
-    throw prefixStep(err, "sheet_read");
-  }
+  console.log(`[sheet] appended date=${snapshotDate} rows=${written}`);
 }
 
 /**
- * Serves the accumulated daily sheet.
+ * Serves salesforce_integration_log.csv.
  * On the first load of a day, appends yesterday's change rows, then reads
  * every stored day. Filters and sorting stay in the page.
  *
@@ -206,13 +148,17 @@ async function fetchData() {
     queryMs = Date.now() - startedAt;
   } else {
     if (!isBigQueryConfigured()) throw notConfigured();
-    await ensureSheetTables();
-    if (!(await yesterdayIsStored())) {
-      await appendYesterday();
+    const snapshotDate = await yesterdayDate();
+    if (!dateIsStored(snapshotDate)) {
+      await appendYesterday(snapshotDate);
     } else {
-      console.log("[sheet] yesterday already stored");
+      console.log(`[sheet] ${snapshotDate} already stored`);
     }
-    rows = await readSheet();
+    try {
+      rows = readLog();
+    } catch (err) {
+      throw prefixStep(err, "sheet_read");
+    }
     console.log(`[sheet] rows=${rows.length}`);
     queryMs = Date.now() - startedAt;
   }

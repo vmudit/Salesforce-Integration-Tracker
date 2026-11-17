@@ -2,7 +2,9 @@
 
 One row per company per day where the plan, active users, or Salesforce user ids changed. The page is a table with a filter on each column.
 
-Each morning the job appends yesterday's rows to a BigQuery sheet (`analytics_reporting.salesforce_integration_sheet` by default). The page reads that sheet, so a day stays visible after the live snapshot has moved on. History starts on the first successful run. Earlier months are not backfilled. Running again the same day does not add yesterday a second time.
+Each morning the job appends yesterday's rows to `salesforce_integration_log.csv` in this folder. The page reads that file, so a day stays visible after the live snapshot has moved on. History starts on the first successful run. Earlier months are not backfilled. Running again the same day does not add yesterday a second time.
+
+On Railway, a new deploy keeps the rows that are committed in the CSV. Rows written only on the running server are replaced by that committed file at the next deploy.
 
 Deployable app lives at the **repository root** (Express + BigQuery + `public/index.html`).
 
