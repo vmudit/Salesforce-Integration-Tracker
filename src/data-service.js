@@ -1,7 +1,8 @@
 const { runQuery, isBigQueryConfigured, unwrapBqValue } = require("./bigquery");
-const { buildTrackerQueries } = require("./queries");
+const { buildTrackerQueries, buildYesterdaySql } = require("./queries");
 const { buildPayload } = require("./transform");
 const { buildDemoRows } = require("./demo-data");
+const { readLog, dateIsStored, appendDay } = require("./sheet-log");
 
 let lastRefresh = null;
 
@@ -57,9 +58,82 @@ function prefixStep(err, step) {
   return err;
 }
 
+function asDate(value) {
+  const raw = unwrapBqValue(value);
+  if (raw == null || raw === "") return null;
+  const text = String(raw);
+  return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : null;
+}
+
+async function yesterdayDate() {
+  let dateRows;
+  try {
+    dateRows = await runQuery(buildYesterdaySql());
+  } catch (err) {
+    throw prefixStep(err, "sheet_date");
+  }
+  const snapshotDate = asDate(dateRows[0] && dateRows[0].snapshot_date);
+  if (!snapshotDate) {
+    const err = new Error("BigQuery did not return yesterday's date");
+    err.code = "BIGQUERY_ERROR";
+    throw prefixStep(err, "sheet_date");
+  }
+  return snapshotDate;
+}
+
 /**
- * Runs the Salesforce tracker extract and builds the table payload.
- * Throws when the self-check fails so a bad payload is never cached or served.
+ * Runs yesterday's extract once and appends that date to the CSV.
+ * A later run on the same day finds the date already stored and does not append again.
+ */
+async function appendYesterday(snapshotDate) {
+  const { previousSql, compareSql } = buildTrackerQueries();
+  let previousRows;
+  try {
+    previousRows = await runQuery(previousSql);
+  } catch (err) {
+    throw prefixStep(err, "sfinfo_previous");
+  }
+  const previousSf = previousSnapshotParam(previousRows);
+  console.log(`[sheet] sfinfo_previous companies=${previousSf.length} date=${snapshotDate}`);
+
+  let dayRows = [];
+  if (previousSf.length > 0) {
+    let compareRows;
+    try {
+      compareRows = await runQuery(
+        compareSql,
+        { previous_sf: previousSf },
+        {
+          previous_sf: [
+            { companyid: "INT64", previous_day_active_sfuserids: "INT64" },
+          ],
+        }
+      );
+    } catch (err) {
+      throw prefixStep(err, "final_compare");
+    }
+    const { payload, checks } = buildPayload(compareRows);
+    if (!checks.ok || !payload) {
+      const err = new Error(`Self-check failed: ${checks.errors.join("; ")}`);
+      err.code = "SELF_CHECK_FAILED";
+      throw prefixStep(err, "final_compare");
+    }
+    dayRows = payload.records.filter((row) => row.date === snapshotDate);
+  }
+
+  let written;
+  try {
+    written = appendDay(snapshotDate, dayRows);
+  } catch (err) {
+    throw prefixStep(err, "sheet_append");
+  }
+  console.log(`[sheet] appended date=${snapshotDate} rows=${written}`);
+}
+
+/**
+ * Serves salesforce_integration_log.csv.
+ * On the first load of a day, appends yesterday's change rows, then reads
+ * every stored day. Filters and sorting stay in the page.
  *
  * When DEMO_MODE=1, returns synthetic rows (no BigQuery call) for local UI review.
  */
@@ -74,33 +148,18 @@ async function fetchData() {
     queryMs = Date.now() - startedAt;
   } else {
     if (!isBigQueryConfigured()) throw notConfigured();
-    const { previousSql, compareSql } = buildTrackerQueries();
-    let previousRows;
-    try {
-      previousRows = await runQuery(previousSql);
-    } catch (err) {
-      throw prefixStep(err, "sfinfo_previous");
-    }
-    const previousSf = previousSnapshotParam(previousRows);
-    console.log(`[tracker] sfinfo_previous companies=${previousSf.length}`);
-    if (previousSf.length === 0) {
-      rows = [];
+    const snapshotDate = await yesterdayDate();
+    if (!dateIsStored(snapshotDate)) {
+      await appendYesterday(snapshotDate);
     } else {
-      try {
-        rows = await runQuery(
-          compareSql,
-          { previous_sf: previousSf },
-          {
-            previous_sf: [
-              { companyid: "INT64", previous_day_active_sfuserids: "INT64" },
-            ],
-          }
-        );
-      } catch (err) {
-        throw prefixStep(err, "final_compare");
-      }
-      console.log(`[tracker] final_compare rows=${rows.length}`);
+      console.log(`[sheet] ${snapshotDate} already stored`);
     }
+    try {
+      rows = readLog();
+    } catch (err) {
+      throw prefixStep(err, "sheet_read");
+    }
+    console.log(`[sheet] rows=${rows.length}`);
     queryMs = Date.now() - startedAt;
   }
 

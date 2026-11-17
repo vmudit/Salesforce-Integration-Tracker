@@ -203,9 +203,15 @@ function buildProbeSql() {
   `;
 }
 
+/** The calendar date the live extract treats as yesterday. */
+function buildYesterdaySql() {
+  return "SELECT DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY) AS snapshot_date";
+}
+
 module.exports = {
   buildTrackerQueries,
   buildProbeSql,
+  buildYesterdaySql,
   factUserMasterTable,
   salesforceInfoTable,
 };
