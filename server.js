@@ -272,7 +272,7 @@ app.listen(PORT, HOST, () => {
       time: REFRESH_AT,
       timeZone: REFRESH_TZ,
       onFire: async () => {
-        console.log("[scheduler] running daily refresh");
+        console.log("[scheduler] appending yesterday and reloading the sheet");
         await loadFresh();
       },
     });

@@ -2,6 +2,8 @@
 
 One row per company per day where the plan, active users, or Salesforce user ids changed. The page is a table with a filter on each column.
 
+Each morning the job appends yesterday's rows to a BigQuery sheet (`analytics_reporting.salesforce_integration_sheet` by default). The page reads that sheet, so a day stays visible after the live snapshot has moved on. History starts on the first successful run. Earlier months are not backfilled. Running again the same day does not add yesterday a second time.
+
 Deployable app lives at the **repository root** (Express + BigQuery + `public/index.html`).
 
 ## Railway
