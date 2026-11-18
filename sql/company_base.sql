@@ -296,7 +296,7 @@ WITH list_of_dates AS (
     available_seats AS current_total_license
   FROM {{SF_APP_LICENSE_TRACK}}
   WHERE available_seats > 0
-     OR lead_email NOT LIKE '%invalid%'
+    AND lead_email NOT LIKE '%invalid%'
   QUALIFY ROW_NUMBER() OVER (
     PARTITION BY companyid
     ORDER BY insertedat DESC

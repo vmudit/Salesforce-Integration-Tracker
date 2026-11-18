@@ -101,6 +101,7 @@ function buildDemoRows() {
       const currentPlan = company.to;
       const planChanged = previousPlan !== currentPlan ? 1 : 0;
       const sfChanged = isLatest && company.latestActive !== company.prevSf ? 1 : 0;
+      const licenseChanged = isLatest && company.license !== company.latestAll ? 1 : 0;
 
       const row = {
         date,
@@ -116,9 +117,15 @@ function buildDemoRows() {
         latest_inactive_users_integrations: isLatest ? company.latestInactive : null,
         previous_day_active_users_integrations: isLatest ? company.prevSf : null,
         active_sfuserids_change_flag: sfChanged,
+        license_integrations_flag: licenseChanged,
       };
 
-      if (row.plan_change_flag === 1 || userDiff !== 0 || row.active_sfuserids_change_flag === 1) {
+      if (
+        row.plan_change_flag === 1 ||
+        userDiff !== 0 ||
+        row.active_sfuserids_change_flag === 1 ||
+        row.license_integrations_flag === 1
+      ) {
         rows.push(row);
       }
     }
