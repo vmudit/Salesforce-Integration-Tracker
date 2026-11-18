@@ -163,6 +163,9 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    .th-label.flag-name {
+      color: #3b8fd6;
+    }
 
     .sort-mark {
       color: var(--accent);
@@ -501,7 +504,7 @@
         const inner = document.createElement("div");
         inner.className = "th-inner";
         const label = document.createElement("span");
-        label.className = "th-label";
+        label.className = column.type === "flag" ? "th-label flag-name" : "th-label";
         label.textContent = column.label;
         label.title = column.label;
         inner.appendChild(label);
