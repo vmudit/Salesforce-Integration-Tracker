@@ -86,7 +86,11 @@ WITH list_of_dates AS (
       '_duplicate')[OFFSET(0)])) AS email
   FROM {{JUSTCALL_USERS}}
   WHERE email IS NOT NULL
-    AND DATE(inserted_at_time) = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+    AND inserted_at_time IS NOT NULL
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY userid
+    ORDER BY inserted_at_time DESC
+  ) = 1
 )
 
 , jc_users_kept AS (
@@ -100,27 +104,13 @@ WITH list_of_dates AS (
     AND ie.email IS NULL
 )
 
-, jc_users_daily AS (
-  SELECT
-    DATE(inserted_at_time) AS snapshot_date,
-    userid,
-    companyid,
-    status
-  FROM jc_users_kept
-  QUALIFY ROW_NUMBER() OVER (
-    PARTITION BY userid, DATE(inserted_at_time)
-    ORDER BY inserted_at_time DESC
-  ) = 1
-)
-
-, active_users_daily AS (
+, active_users_latest AS (
   SELECT
     companyid,
-    snapshot_date,
     COUNT(DISTINCT userid) AS active_users
-  FROM jc_users_daily
+  FROM jc_users_kept
   WHERE status = 0
-  GROUP BY 1, 2
+  GROUP BY 1
 )
 
 , jc_latest_user AS (
@@ -322,9 +312,13 @@ WITH list_of_dates AS (
     curr.company_status,
     prev.plan_type AS previous_day_plan,
     curr.plan_type AS current_day_plan,
-    IFNULL(ua.active_users, 0) AS current_active_users,
-    IFNULL(up.active_users, 0) AS previous_day_active_users,
-    IFNULL(ua.active_users, 0) - IFNULL(up.active_users, 0) AS active_users_difference,
+    CASE
+      WHEN cd.date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+      THEN IFNULL(ual.active_users, 0)
+      ELSE 0
+    END AS current_active_users,
+    0 AS previous_day_active_users,
+    0 AS active_users_difference,
     CASE
       WHEN UPPER(IFNULL(curr.company_status, '')) = 'CANCELED' THEN 0
       ELSE IFNULL(sf.active_salesforce_integrations, 0)
@@ -358,12 +352,8 @@ WITH list_of_dates AS (
   LEFT JOIN plan_status prev
     ON cd.companyid = prev.companyid
    AND prev.date = DATE_SUB(cd.date, INTERVAL 1 DAY)
-  LEFT JOIN active_users_daily ua
-    ON cd.companyid = ua.companyid
-   AND cd.date = ua.snapshot_date
-  LEFT JOIN active_users_daily up
-    ON cd.companyid = up.companyid
-   AND up.snapshot_date = DATE_SUB(cd.date, INTERVAL 1 DAY)
+  LEFT JOIN active_users_latest ual
+    ON cd.companyid = ual.companyid
   LEFT JOIN sf_filled sf
     ON cd.companyid = sf.companyid
    AND cd.date = sf.date
