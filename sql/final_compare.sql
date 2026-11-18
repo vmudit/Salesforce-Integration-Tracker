@@ -52,13 +52,13 @@ SELECT
   current_day_plan,
   plan_change_flag,
   current_active_users,
+  license_integrations_flag,
   current_total_license,
   latest_integrations,
   latest_active_users_integrations,
   latest_inactive_users_integrations,
   previous_day_active_users_integrations,
-  active_sfuserids_change_flag,
-  license_integrations_flag
+  active_sfuserids_change_flag
 FROM compared
 WHERE plan_change_flag = 1
    OR active_users_difference <> 0

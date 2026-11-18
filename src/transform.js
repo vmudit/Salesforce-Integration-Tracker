@@ -12,6 +12,7 @@ const COLUMNS = [
   { key: "current_day_plan", label: "Current Day Plan", type: "string" },
   { key: "plan_change_flag", label: "Plan Change", type: "flag" },
   { key: "current_active_users", label: "Current Active Users", type: "number" },
+  { key: "license_integrations_flag", label: "License Integrations Change", type: "flag" },
   { key: "current_total_license", label: "Current Salesforce License", type: "number" },
   { key: "latest_integrations", label: "Latest Integrations", type: "number" },
   {
@@ -30,7 +31,6 @@ const COLUMNS = [
     type: "number",
   },
   { key: "active_sfuserids_change_flag", label: "Active SF User ID Change", type: "flag" },
-  { key: "license_integrations_flag", label: "License Integrations Change", type: "flag" },
 ];
 
 function toDateStr(value) {
