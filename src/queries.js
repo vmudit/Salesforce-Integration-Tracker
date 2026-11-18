@@ -101,6 +101,15 @@ function salesforceInfoTable() {
   );
 }
 
+function sfAppLicenseTrackTable() {
+  return datasetTable(
+    "BQ_SF_LICENSE_DATASET",
+    "BQ_SF_LICENSE_TABLE",
+    "sms_jclive",
+    "sf_app_license_track"
+  );
+}
+
 function extractTableTokens() {
   return {
     FACT_USER_MASTER: factUserMasterTable().fqn,
@@ -109,6 +118,7 @@ function extractTableTokens() {
     INT_LOGS_STATUS: intLogsStatusTable().fqn,
     INT_CONNECT_JCLIVE: intConnectTable().fqn,
     SALESFORCE_INFO: salesforceInfoTable().fqn,
+    SF_APP_LICENSE_TRACK: sfAppLicenseTrackTable().fqn,
   };
 }
 
