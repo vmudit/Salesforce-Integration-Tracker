@@ -14,7 +14,8 @@
 --   {{INTERNAL_EMAILS}}    analytics_intermediate.int_internal_emails
 --   {{INT_LOGS_STATUS}}    justcall.int_logs_status
 --   {{INT_CONNECT_JCLIVE}} justcall.int_connect_jclive
---   {{SALESFORCE_INFO}}    jclive.salesforce_info
+--   {{SALESFORCE_INFO}}      jclive.salesforce_info
+--   {{SF_APP_LICENSE_TRACK}} sms_jclive.sf_app_license_track
 
 WITH list_of_dates AS (
   SELECT date
@@ -85,8 +86,7 @@ WITH list_of_dates AS (
       '_duplicate')[OFFSET(0)])) AS email
   FROM {{JUSTCALL_USERS}}
   WHERE email IS NOT NULL
-    AND DATE(inserted_at_time) >= DATE '2024-10-31'
-    AND DATE(inserted_at_time) <= DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+    AND DATE(inserted_at_time) = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
 )
 
 , jc_users_kept AS (
@@ -299,6 +299,20 @@ WITH list_of_dates AS (
   GROUP BY 1
 )
 
+-- Latest license row per company. available_seats is the current Salesforce license.
+, current_total_license AS (
+  SELECT
+    CAST(companyid AS INT64) AS companyid,
+    available_seats AS current_total_license
+  FROM {{SF_APP_LICENSE_TRACK}}
+  WHERE available_seats > 0
+     OR lead_email NOT LIKE '%invalid%'
+  QUALIFY ROW_NUMBER() OVER (
+    PARTITION BY companyid
+    ORDER BY insertedat DESC
+  ) = 1
+)
+
 , company_day AS (
   SELECT *
   FROM (
@@ -330,7 +344,11 @@ WITH list_of_dates AS (
     CASE
       WHEN cd.date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
       THEN IFNULL(sc.latest_inactive_users_integrations, 0)
-    END AS latest_inactive_users_integrations
+    END AS latest_inactive_users_integrations,
+    CASE
+      WHEN cd.date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+      THEN lic.current_total_license
+    END AS current_total_license
   FROM company_dates cd
   INNER JOIN previous_sf cur
     ON cd.companyid = cur.companyid
@@ -352,6 +370,8 @@ WITH list_of_dates AS (
   LEFT JOIN sfinfo_current sc
     ON cd.companyid = sc.companyid
    AND cd.date = DATE_SUB(CURRENT_DATE(), INTERVAL 1 DAY)
+  LEFT JOIN current_total_license lic
+    ON cd.companyid = lic.companyid
   ) day
   WHERE (
       current_day_plan IS NOT NULL

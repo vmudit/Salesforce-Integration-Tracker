@@ -14,6 +14,7 @@ function buildDemoRows() {
       to: "Proplus",
       users: [8, 9, 9, 11],
       sf: [2, 2, 3, 3],
+      license: 12,
       prevSf: 2,
       latestAll: 4,
       latestActive: 3,
@@ -26,6 +27,7 @@ function buildDemoRows() {
       to: "Essential",
       users: [4, 4, 6, 6],
       sf: [1, 1, 1, 1],
+      license: 6,
       prevSf: 1,
       latestAll: 2,
       latestActive: 1,
@@ -38,6 +40,7 @@ function buildDemoRows() {
       to: "Business",
       users: [20, 20, 18, 18],
       sf: [6, 6, 6, 5],
+      license: 20,
       prevSf: 6,
       latestAll: 7,
       latestActive: 5,
@@ -50,6 +53,7 @@ function buildDemoRows() {
       to: "Pro",
       users: [2, 3, 3, 5],
       sf: [1, 1, 1, 1],
+      license: 5,
       prevSf: 0,
       latestAll: 1,
       latestActive: 1,
@@ -62,6 +66,7 @@ function buildDemoRows() {
       to: "Pro",
       users: [15, 15, 15, 14],
       sf: [4, 4, 4, 4],
+      license: 15,
       prevSf: 4,
       latestAll: 4,
       latestActive: 4,
@@ -74,6 +79,7 @@ function buildDemoRows() {
       to: "Proplus",
       users: [7, 7, 1, 0],
       sf: [3, 3, 0, 0],
+      license: 0,
       prevSf: 2,
       latestAll: 2,
       latestActive: 0,
@@ -94,7 +100,7 @@ function buildDemoRows() {
       const previousPlan = i === 1 ? company.from : company.to;
       const currentPlan = company.to;
       const planChanged = previousPlan !== currentPlan ? 1 : 0;
-      const sfDiff = isLatest ? company.latestActive - company.prevSf : null;
+      const sfChanged = isLatest && company.latestActive !== company.prevSf ? 1 : 0;
 
       const row = {
         date,
@@ -104,24 +110,15 @@ function buildDemoRows() {
         current_day_plan: currentPlan,
         plan_change_flag: planChanged,
         current_active_users: currentUsers,
-        previous_day_active_users: previousUsers,
-        active_users_difference: userDiff,
-        active_users_change_flag: userDiff !== 0 ? 1 : 0,
-        current_active_salesforce_integrations:
-          company.status.toUpperCase() === "CANCELED" ? 0 : company.sf[i],
-        previous_day_active_sfuserids: isLatest ? company.prevSf : null,
-        active_sfuserids_difference: sfDiff,
-        active_sfuserids_change_flag: sfDiff != null && sfDiff !== 0 ? 1 : 0,
+        current_total_license: isLatest ? company.license : null,
         latest_integrations: isLatest ? company.latestAll : null,
         latest_active_users_integrations: isLatest ? company.latestActive : null,
         latest_inactive_users_integrations: isLatest ? company.latestInactive : null,
+        previous_day_active_users_integrations: isLatest ? company.prevSf : null,
+        active_sfuserids_change_flag: sfChanged,
       };
 
-      if (
-        row.plan_change_flag === 1 ||
-        row.active_users_change_flag === 1 ||
-        row.active_sfuserids_change_flag === 1
-      ) {
+      if (row.plan_change_flag === 1 || userDiff !== 0 || row.active_sfuserids_change_flag === 1) {
         rows.push(row);
       }
     }

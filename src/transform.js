@@ -12,21 +12,7 @@ const COLUMNS = [
   { key: "current_day_plan", label: "Current Day Plan", type: "string" },
   { key: "plan_change_flag", label: "Plan Change", type: "flag" },
   { key: "current_active_users", label: "Current Active Users", type: "number" },
-  { key: "previous_day_active_users", label: "Previous Day Active Users", type: "number" },
-  { key: "active_users_difference", label: "Active Users Difference", type: "number" },
-  { key: "active_users_change_flag", label: "Active Users Change", type: "flag" },
-  {
-    key: "current_active_salesforce_integrations",
-    label: "Current Active Salesforce Integrations",
-    type: "number",
-  },
-  {
-    key: "previous_day_active_sfuserids",
-    label: "Previous Day Active SF User IDs",
-    type: "number",
-  },
-  { key: "active_sfuserids_difference", label: "Active SF User IDs Difference", type: "number" },
-  { key: "active_sfuserids_change_flag", label: "Active SF User IDs Change", type: "flag" },
+  { key: "current_total_license", label: "Current Salesforce License", type: "number" },
   { key: "latest_integrations", label: "Latest Integrations", type: "number" },
   {
     key: "latest_active_users_integrations",
@@ -38,6 +24,12 @@ const COLUMNS = [
     label: "Latest Inactive Users Integrations",
     type: "number",
   },
+  {
+    key: "previous_day_active_users_integrations",
+    label: "Previous Day Active Users Integrations",
+    type: "number",
+  },
+  { key: "active_sfuserids_change_flag", label: "Active SF User ID Change", type: "flag" },
 ];
 
 function toDateStr(value) {
