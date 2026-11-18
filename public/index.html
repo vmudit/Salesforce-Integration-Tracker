@@ -327,6 +327,7 @@
         <div class="meta" id="meta"></div>
       </div>
       <div class="header-actions">
+        <button class="text-btn" id="download-csv" type="button" disabled>Download CSV</button>
         <button class="text-btn" id="clear-filters" type="button" disabled>Reset view</button>
       </div>
     </header>
@@ -378,6 +379,7 @@
     const statusEl = document.getElementById("status");
     const metaEl = document.getElementById("meta");
     const clearBtn = document.getElementById("clear-filters");
+    const downloadBtn = document.getElementById("download-csv");
     const popover = document.getElementById("popover");
     const popSearch = document.getElementById("pop-search");
     const valueList = document.getElementById("value-list");
@@ -460,6 +462,7 @@
       }
       state.filtered = rows;
       clearBtn.disabled = state.filters.size === 0 && !state.sort;
+      downloadBtn.disabled = rows.length === 0;
       renderMeta();
       renderBody();
     }
@@ -748,6 +751,35 @@
     window.addEventListener("resize", () => {
       if (!popover.hidden) closePopover(false);
       renderBody();
+    });
+
+    function csvCell(value) {
+      if (value == null || value === "") return "";
+      let text = String(value);
+      if (/^[=+\-@\t\r]/.test(text)) text = "'" + text;
+      if (/[",\n\r]/.test(text)) return '"' + text.replace(/"/g, '""') + '"';
+      return text;
+    }
+
+    function filteredCsv() {
+      const lines = [state.columns.map((column) => csvCell(column.label)).join(",")];
+      for (const row of state.filtered) {
+        lines.push(state.columns.map((column) => csvCell(row[column.key])).join(","));
+      }
+      return lines.join("\n") + "\n";
+    }
+
+    downloadBtn.addEventListener("click", () => {
+      if (!state.filtered.length) return;
+      const blob = new Blob([filteredCsv()], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "salesforce_integration_tracker.csv";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
     });
 
     clearBtn.addEventListener("click", () => {

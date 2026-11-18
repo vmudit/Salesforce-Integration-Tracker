@@ -31,7 +31,13 @@ WITH compared AS (
          <> IFNULL(p.previous_day_active_sfuserids, 0)
       THEN 1
       ELSE 0
-    END AS active_sfuserids_change_flag
+    END AS active_sfuserids_change_flag,
+    CASE
+      WHEN b.is_latest_date = 1
+       AND IFNULL(b.current_total_license, 0) <> IFNULL(b.latest_integrations, 0)
+      THEN 1
+      ELSE 0
+    END AS license_integrations_flag
   FROM company_day b
   LEFT JOIN previous_sf p
     ON b.companyid = p.companyid
@@ -51,9 +57,11 @@ SELECT
   latest_active_users_integrations,
   latest_inactive_users_integrations,
   previous_day_active_users_integrations,
-  active_sfuserids_change_flag
+  active_sfuserids_change_flag,
+  license_integrations_flag
 FROM compared
 WHERE plan_change_flag = 1
    OR active_users_difference <> 0
    OR active_sfuserids_change_flag = 1
+   OR license_integrations_flag = 1
 ORDER BY date DESC, companyid

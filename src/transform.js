@@ -30,6 +30,7 @@ const COLUMNS = [
     type: "number",
   },
   { key: "active_sfuserids_change_flag", label: "Active SF User ID Change", type: "flag" },
+  { key: "license_integrations_flag", label: "License Integrations Change", type: "flag" },
 ];
 
 function toDateStr(value) {
