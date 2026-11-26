@@ -16,6 +16,6 @@
     "@google-cloud/bigquery": "^8.3.1",
     "compression": "^1.7.5",
     "dotenv": "^16.4.7",
-    "express": "^4.21.2"
+    "express": "^4.22.3"
   }
 }
